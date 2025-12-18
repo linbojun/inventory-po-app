@@ -320,6 +320,15 @@ This app is designed to be deployable with:
 - **Database**: Neon (PostgreSQL)
 - **Images**: Cloudflare R2 (persistent object storage)
 
+### Current Production Instances
+
+The live environment uses the free-tier providers listed above:
+
+- **Frontend (Vercel)** – `https://inventory-po-app.vercel.app/`
+- **Backend (Render)** – `https://inventory-po-app.onrender.com`
+- **Database (Neon.tech PostgreSQL)** – provisioned via Neon; the `DATABASE_URL` Render env var references the current instance.
+- **Image Storage (Cloudflare R2)** – managed through the Cloudflare dashboard at `https://dash.cloudflare.com/6b02e0f26ce769dd116b1e095c1266f0/r2/default/buckets/inventory-images`
+
 ### Production Environment Variables
 
 **Frontend (Vercel)**:
