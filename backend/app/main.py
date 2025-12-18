@@ -31,19 +31,67 @@ ensure_schema_updates()
 app = FastAPI(title="Inventory PO API", version="1.0.0")
 
 # Configure CORS origins:
-# - Default is local dev servers
-# - In production, set CORS_ALLOW_ORIGINS as a comma-separated list
-#   e.g. https://your-app.vercel.app,https://your-custom-domain.com
+# - Defaults include common dev servers AND the production Vercel domain.
+# - CORS_ALLOW_ORIGINS can override the list (comma separated).
+# - CORS_EXTRA_ORIGINS appends values without losing the defaults.
+DEFAULT_CORS_ORIGINS: List[str] = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://inventory-po-app.vercel.app",
+]
+
+
+def _split_origins(raw: str) -> List[str]:
+    return [part.strip() for part in raw.split(",") if part and part.strip()]
+
+
+def _dedupe(origins: List[str]) -> List[str]:
+    seen = set()
+    deduped: List[str] = []
+    for origin in origins:
+        if origin and origin not in seen:
+            deduped.append(origin)
+            seen.add(origin)
+    return deduped
+
+
 def _get_cors_allow_origins() -> List[str]:
-    raw = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
-    if not raw:
-        return ["http://localhost:3000", "http://localhost:5173"]
-    return [part.strip() for part in raw.split(",") if part.strip()]
+    configured = _split_origins(os.getenv("CORS_ALLOW_ORIGINS", ""))
+    extras = _split_origins(os.getenv("CORS_EXTRA_ORIGINS", ""))
+
+    if not configured:
+        origins = list(DEFAULT_CORS_ORIGINS)
+    else:
+        origins = configured
+
+    if extras:
+        origins.extend(extras)
+
+    return _dedupe(origins)
+
+
+# Allow a regex-based fallback for common hosting providers.
+# - ENABLE_VERCEL_PREVIEW_CORS=true (default) keeps *.vercel.app previews working
+# - Set CORS_ALLOW_ORIGIN_REGEX to override entirely
+def _get_cors_allow_origin_regex() -> Optional[str]:
+    explicit_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX", "").strip()
+    if explicit_regex:
+        return explicit_regex
+
+    enable_vercel_regex = os.getenv("ENABLE_VERCEL_PREVIEW_CORS", "true").lower() in {"1", "true", "yes"}
+    if enable_vercel_regex:
+        # Default dev + Vercel deployments (preview + production).
+        # - localhost with optional port
+        # - any *.vercel.app
+        return r"^http://localhost(:\d+)?$|^https://.*\.vercel\.app$"
+
+    return None
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_get_cors_allow_origins(),
+    allow_origin_regex=_get_cors_allow_origin_regex(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

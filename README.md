@@ -132,6 +132,22 @@ FEATURE_MATCH_RATIO=0.75
 FEATURE_MIN_MATCHES=15
 ```
 
+#### CORS / Hosting configuration
+
+The API automatically whitelists `http://localhost:3000`, `http://localhost:5173`, and `https://inventory-po-app.vercel.app`. When deploying to Render (or another host), set the following env vars if you need to customize the allowlist:
+
+```
+# Replace the entire allowlist (comma separated). Leave empty to keep defaults.
+CORS_ALLOW_ORIGINS=https://inventory-po-app.vercel.app,https://your-custom-domain.com
+
+# Append extra origins without losing the defaults.
+CORS_EXTRA_ORIGINS=https://staging.your-domain.com
+
+# Keep *.vercel.app previews (and localhost with random ports) allowed via regex.
+# Set to false only if you want to block preview deployments entirely.
+ENABLE_VERCEL_PREVIEW_CORS=true
+```
+
 5. Run the backend server:
 ```bash
 python run.py
@@ -240,15 +256,9 @@ This will test:
 - Inline order quantity updates
 - Validation
 - Cart view and synchronization
-- Image similarity deduplication (covers identical uploads, plus padded vs. cropped versions of the same product photo)
-  - **Note**: The test requires `backend/static/images/test_01_535f18cb.png` (a cropped version of `800000_23ae6915.png`). If missing, it can be generated:
-    ```bash
-    cd backend
-    source venv/bin/activate
-    python3 -c "from PIL import Image; img = Image.open('static/images/800000_23ae6915.png'); w, h = img.size; img.crop((int(w*0.1), int(h*0.1), int(w*0.9), int(h*0.9))).save('static/images/test_01_535f18cb.png')"
-    ```
-- Force-saving a new image even when it resembles an existing file (verifies the override switch on image uploads)
 - PDF invoice import (Chinatown Supermarket format, including duplicate-skipping)
+
+Image similarity regression scenarios now live exclusively in the lightweight CLI inside `backend/tests/image_similarity_cli.py`. Run that helper to evaluate deduplication behavior without exercising the full HTTP harness.
 
 ### One-off image similarity checks
 
@@ -313,11 +323,15 @@ This app is designed to be deployable with:
 ### Production Environment Variables
 
 **Frontend (Vercel)**:
-- `VITE_API_URL=https://<your-backend-domain>/api`
+- `VITE_API_URL=https://<your-backend-domain>` (recommended)  
+  The frontend will automatically append `/api` if you forget it.
+- (Also OK) `VITE_API_URL=https://<your-backend-domain>/api`
 
 **Backend (Render)**:
 - `DATABASE_URL=postgresql://...` (Neon connection string)
 - `CORS_ALLOW_ORIGINS=https://<your-frontend-domain>` (comma-separated list if needed)
+  - If you don't set it, the backend allows `localhost` and `*.vercel.app` by default.
+  - Optional advanced: `CORS_ALLOW_ORIGIN_REGEX=...` for a custom regex allowlist.
 
 If using **Cloudflare R2** for images:
 - `R2_ENDPOINT_URL=https://<your-account-id>.r2.cloudflarestorage.com`

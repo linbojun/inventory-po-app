@@ -2,6 +2,26 @@
 
 All notable changes to the Inventory PO Web App project will be documented in this file.
 
+## [1.2.19] - 2025-12-18
+
+### Fixed - Render deployments now whitelist Vercel by default
+
+**Why**: After deploying the backend to Render, the frontend on Vercel hit `Network Error` because the FastAPI CORS middleware only allowed localhost unless `CORS_ALLOW_ORIGINS` was set manually. This also meant preview deployments (`*.vercel.app`) required constant manual updates.
+
+**What**:
+- Expanded the backend CORS helpers so localhost and `https://inventory-po-app.vercel.app` are always allowed by default, even when `CORS_ALLOW_ORIGINS` is left unset. Added `CORS_EXTRA_ORIGINS` to append domains without losing the defaults and `ENABLE_VERCEL_PREVIEW_CORS` to keep the regex-based preview allowlist enabled by default.
+- Documented the new environment knobs in `README.md` and `backend/.env.example`, making Render/Vercel configuration copy-pasteable for future deployments.
+
+## [1.2.18] - 2025-12-18
+
+### Updated - Core regression suite focuses on API flows
+
+**Why**: The image deduplication checks in `test_core_functionality.py` depended on large binary fixtures and repeated uploads, slowing down the core health check even when teams only needed confirmation that CRUD, cart, and PDF paths still behaved. The dedicated `backend/tests/image_similarity_cli.py` tool now covers those scenarios directly, so duplicating the work inside the HTTP harness was redundant.
+
+**What**:
+- Removed the three image deduplication test cases, related fixtures, and `TEST-IMG-*` cleanup helpers from `test_core_functionality.py`.
+- Updated the README’s Testing section to note that image dedup validation now lives in the CLI helper rather than the core regression suite.
+
 ## [1.2.16] - 2025-12-18
 
 ### Added - Standalone Image Similarity CLI
@@ -11,6 +31,16 @@ All notable changes to the Inventory PO Web App project will be documented in th
 **What**:
 - Added `backend/tests/image_similarity_cli.py`, a small test harness that accepts two image paths, computes the project’s pHash/ORB metrics, and reports whether the pair clears `IMAGE_SIMILARITY_THRESHOLD` or `FEATURE_MIN_MATCHES`.
 - Documented the new script (usage, thresholds, override flags) in `README.md` under Testing so anyone can run quick spot-checks against `/static/...` files or local samples.
+
+## [1.2.17] - 2025-12-18
+
+### Fixed - Vercel ↔ Render production connectivity (CORS + /api base path)
+
+**Why**: After deploying, the Vercel frontend failed with `AxiosError: Network Error` and browser console messages like `blocked by CORS policy` because (1) the backend CORS default only allowed localhost and (2) it’s easy to misconfigure `VITE_API_URL` without the required `/api` path, resulting in `/products` and `/cart` 404s.
+
+**What**:
+- Updated the frontend API client so `VITE_API_URL` can be set to either `https://<backend>` or `https://<backend>/api`; the client normalizes to always call `/api/...` routes.
+- Updated backend CORS configuration to allow `localhost` and `*.vercel.app` by default when `CORS_ALLOW_ORIGINS` is not explicitly set, while keeping the option to enforce a strict allowlist via `CORS_ALLOW_ORIGINS` (and optional `CORS_ALLOW_ORIGIN_REGEX`).
 
 ## [1.2.15] - 2025-12-18
 

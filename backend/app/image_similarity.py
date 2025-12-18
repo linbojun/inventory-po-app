@@ -6,7 +6,7 @@ from typing import Dict, Optional, Tuple
 import cv2
 import imagehash
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageOps
 from sqlalchemy.orm import Session
 
 from app.database import settings
@@ -14,6 +14,96 @@ from app.models import Product
 from app.storage import get_image_bytes
 
 _orb_cache: Dict[str, Optional[np.ndarray]] = {}
+
+def _trim_solid_edges(image: Image.Image, *, std_threshold: float = 2.0, max_trim_ratio: float = 0.45) -> Image.Image:
+    """
+    Trim solid-color bars on the outer edges (e.g. white padding, black letterboxing).
+
+    This is intentionally simple and robust: if the outermost row/col has very low
+    standard deviation, we treat it as padding and trim it away (up to a limit).
+    """
+    try:
+        gray = np.array(image.convert("L"))
+    except Exception:
+        return image
+
+    if gray.ndim != 2:
+        return image
+
+    h, w = gray.shape
+    if h < 32 or w < 32:
+        return image
+
+    max_trim_h = int(h * max_trim_ratio)
+    max_trim_w = int(w * max_trim_ratio)
+    top, bottom, left, right = 0, h - 1, 0, w - 1
+
+    # Iteratively trim until no more solid edges are found.
+    while True:
+        changed = False
+
+        if top < bottom and top < max_trim_h:
+            band = gray[top, left : right + 1]
+            if band.size and float(band.std()) <= std_threshold:
+                top += 1
+                changed = True
+
+        if top < bottom and (h - 1 - bottom) < max_trim_h:
+            band = gray[bottom, left : right + 1]
+            if band.size and float(band.std()) <= std_threshold:
+                bottom -= 1
+                changed = True
+
+        if left < right and left < max_trim_w:
+            band = gray[top : bottom + 1, left]
+            if band.size and float(band.std()) <= std_threshold:
+                left += 1
+                changed = True
+
+        if left < right and (w - 1 - right) < max_trim_w:
+            band = gray[top : bottom + 1, right]
+            if band.size and float(band.std()) <= std_threshold:
+                right -= 1
+                changed = True
+
+        if not changed:
+            break
+
+        if (bottom - top + 1) < 32 or (right - left + 1) < 32:
+            return image
+
+    if top == 0 and bottom == h - 1 and left == 0 and right == w - 1:
+        return image
+
+    return image.crop((left, top, right + 1, bottom + 1))
+
+
+def _trim_uniform_border(image: Image.Image, tolerance: int = 8) -> Image.Image:
+    """
+    Best-effort trim of a uniform border (e.g. padded white margins).
+
+    This improves deduplication for "same photo, different padding/cropping" cases.
+    If no clear border is found, returns the original image.
+    """
+    try:
+        # First, remove any solid bars (white/black padding, letterbox strips).
+        image = _trim_solid_edges(image)
+
+        # Use the top-left pixel as the presumed background color.
+        bg_color = image.getpixel((0, 0))
+        bg = Image.new(image.mode, image.size, bg_color)
+        diff = ImageChops.difference(image, bg)
+        # Reduce sensitivity so minor compression noise doesn't block trimming.
+        diff = ImageChops.add(diff, diff, 2.0, -tolerance)
+        bbox = diff.getbbox()
+        if bbox:
+            # Guard against producing a tiny image.
+            cropped = image.crop(bbox)
+            if cropped.size[0] >= 32 and cropped.size[1] >= 32:
+                return cropped
+    except Exception:
+        pass
+    return image
 
 
 def compute_phash(image_bytes: bytes) -> Optional[str]:
@@ -24,6 +114,7 @@ def compute_phash(image_bytes: bytes) -> Optional[str]:
     try:
         with Image.open(BytesIO(image_bytes)) as image:
             normalized = ImageOps.exif_transpose(image)
+            normalized = _trim_uniform_border(normalized)
             phash = imagehash.phash(normalized)
             return str(phash)
     except Exception:
@@ -38,6 +129,7 @@ def extract_orb_features(image_bytes: bytes) -> Optional[np.ndarray]:
     try:
         with Image.open(BytesIO(image_bytes)) as image:
             normalized = ImageOps.exif_transpose(image)
+            normalized = _trim_uniform_border(normalized)
             gray = np.array(normalized.convert("L"))
     except Exception:
         return None

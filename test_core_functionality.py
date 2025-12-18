@@ -4,7 +4,6 @@ Test program for core functionality of Inventory PO Web App
 This script tests the critical use cases defined in test_proposal.md
 """
 
-import base64
 import json
 import os
 import time
@@ -27,16 +26,7 @@ TEST_PRODUCT_IDS = [
     "TEST-CART-02",
     "TEST-CART-03",
     "TEST-CART-SYNC",
-    "TEST-IMG-DEDUP-1",
-    "TEST-IMG-DEDUP-2",
-    "TEST-IMG-DEDUP-3",
-    "TEST-IMG-PAD-1",
-    "TEST-IMG-PAD-2",
-    "TEST-IMG-FORCE-1",
-    "TEST-IMG-FORCE-2",
 ]
-
-PROJECT_ROOT = Path(__file__).resolve().parent
 
 PDF_SAMPLE_PRODUCTS = [
     (
@@ -60,9 +50,6 @@ PDF_SAMPLE_PRODUCTS = [
         Decimal("9.50"),
     ),
 ]
-
-PATTERN_A_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP4z8DAAMIM/4EAAB/uBfsL2WiLAAAAAElFTkSuQmCC"
-PATTERN_B_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAE0lEQVR4nGNgYPgPBAz/GYAMBgAt4AX7R5TYiQAAAABJRU5ErkJggg=="
 
 class TestRunner:
     def __init__(self):
@@ -175,18 +162,6 @@ class TestRunner:
             return response.json()
         self.log(f"Image upload failed for {product_id}: {response.text}", "WARN")
         return None
-
-    def load_fixture_image(self, relative_path: str) -> Optional[bytes]:
-        """Load image bytes from repository fixtures."""
-        path = PROJECT_ROOT / relative_path
-        if not path.exists():
-            self.log(f"Fixture not found: {path}", "WARN")
-            return None
-        try:
-            return path.read_bytes()
-        except Exception as exc:
-            self.log(f"Unable to read fixture {path}: {exc}", "WARN")
-            return None
 
     def get_product_by_id(self, db_id: int) -> Optional[Dict]:
         """Get product by database ID"""
@@ -519,77 +494,6 @@ class TestRunner:
         
         return True
 
-    def test_image_deduplication(self):
-        """TC-IMAGE-01: Ensure similar uploads reuse existing images."""
-        product_ids = ["TEST-IMG-DEDUP-1", "TEST-IMG-DEDUP-2", "TEST-IMG-DEDUP-3"]
-        for product_id in product_ids:
-            self._delete_product_by_product_id(product_id)
-        
-        primary_bytes = base64.b64decode(PATTERN_A_BASE64)
-        alternate_bytes = base64.b64decode(PATTERN_B_BASE64)
-        
-        first = self.create_product_with_image(product_ids[0], "Image Dedup 1", primary_bytes)
-        second = self.create_product_with_image(product_ids[1], "Image Dedup 2", primary_bytes)
-        third = self.create_product_with_image(product_ids[2], "Image Dedup 3", alternate_bytes)
-        
-        if not first or not second or not third:
-            return False
-        
-        first_url = first.get("image_url")
-        second_url = second.get("image_url")
-        third_url = third.get("image_url")
-        
-        if not first_url or not second_url or not third_url:
-            return False
-        
-        return first_url == second_url and third_url != first_url
-
-    def test_image_deduplication_with_padding(self):
-        """TC-IMAGE-02: Ensure padded vs. cropped photos reuse the same file."""
-        product_ids = ["TEST-IMG-PAD-1", "TEST-IMG-PAD-2"]
-        for product_id in product_ids:
-            self._delete_product_by_product_id(product_id)
-
-        padded_bytes = self.load_fixture_image("backend/static/images/800000_23ae6915.png")
-        trimmed_bytes = self.load_fixture_image("backend/static/images/test_01_535f18cb.png")
-        if not padded_bytes or not trimmed_bytes:
-            return False
-
-        first = self.create_product_with_image(product_ids[0], "Image Dedup Padded", padded_bytes)
-        second = self.create_product_with_image(product_ids[1], "Image Dedup Trimmed", trimmed_bytes)
-        if not first or not second:
-            return False
-
-        first_url = first.get("image_url")
-        second_url = second.get("image_url")
-        if not first_url or not second_url:
-            return False
-
-        return first_url == second_url
-
-    def test_image_deduplication_force_override(self):
-        """TC-IMAGE-03: Forcing a new image bypasses deduplication."""
-        product_ids = ["TEST-IMG-FORCE-1", "TEST-IMG-FORCE-2"]
-        for product_id in product_ids:
-            self._delete_product_by_product_id(product_id)
-
-        shared_bytes = base64.b64decode(PATTERN_A_BASE64)
-        first = self.create_product_with_image(product_ids[0], "Image Force 1", shared_bytes)
-        second = self.create_product_with_image(
-            product_ids[1],
-            "Image Force 2",
-            shared_bytes,
-            force_new_image=True,
-        )
-        if not first or not second:
-            return False
-
-        first_url = first.get("image_url")
-        second_url = second.get("image_url")
-        if not first_url or not second_url:
-            return False
-        return first_url != second_url
-
     def _delete_product_by_product_id(self, product_id: str):
         """Delete a product by its product_id if it exists (used for cleanup)."""
         try:
@@ -638,9 +542,6 @@ class TestRunner:
                 ("Order Qty Validation", self.test_order_qty_validation),
                 ("Cart View", self.test_cart_view),
                 ("Cart Edit Sync", self.test_cart_edit_sync),
-                ("Image Similarity Deduplication", self.test_image_deduplication),
-                ("Image Deduplication With Padding", self.test_image_deduplication_with_padding),
-                ("Image Force Override", self.test_image_deduplication_force_override),
                 ("PDF Import (Chinatown)", self.test_pdf_import),
             ]
             

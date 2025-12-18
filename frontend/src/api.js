@@ -2,7 +2,17 @@ import axios from 'axios';
 
 // In production set VITE_API_URL (e.g. https://your-backend.onrender.com/api)
 // For local dev it falls back to localhost.
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const normalizeApiBaseUrl = (raw) => {
+  const value = (raw || '').trim();
+  if (!value) return 'http://localhost:8000/api';
+  // Remove trailing slashes to make suffix checks reliable.
+  const noTrailingSlash = value.replace(/\/+$/, '');
+  // Backend routes live under /api (see FastAPI routes).
+  if (noTrailingSlash.endsWith('/api')) return noTrailingSlash;
+  return `${noTrailingSlash}/api`;
+};
+
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL);
 
 export const getApiOrigin = () => {
   // If baseURL ends with /api, strip it to get origin.
