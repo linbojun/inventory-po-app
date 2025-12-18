@@ -201,6 +201,12 @@ This will test:
 - Validation
 - Cart view and synchronization
 - Image similarity deduplication (covers identical uploads, plus padded vs. cropped versions of the same product photo)
+  - **Note**: The test requires `backend/static/images/test_01_535f18cb.png` (a cropped version of `800000_23ae6915.png`). If missing, it can be generated:
+    ```bash
+    cd backend
+    source venv/bin/activate
+    python3 -c "from PIL import Image; img = Image.open('static/images/800000_23ae6915.png'); w, h = img.size; img.crop((int(w*0.1), int(h*0.1), int(w*0.9), int(h*0.9))).save('static/images/test_01_535f18cb.png')"
+    ```
 - PDF invoice import (Chinatown Supermarket format, including duplicate-skipping)
 
 ## Development
