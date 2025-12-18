@@ -17,6 +17,26 @@ This application allows you to:
 - **Backend**: Python FastAPI
 - **Database**: PostgreSQL (or SQLite for local development)
 - **API**: RESTful JSON API
+- **Image Processing**: Pillow, imagehash, OpenCV (for perceptual hashing and ORB feature matching)
+
+### Key Dependencies
+
+**Backend** (`backend/requirements.txt`):
+- FastAPI 0.104.1 - Web framework
+- SQLAlchemy 2.0.23 - ORM
+- Pydantic 2.5.0 - Data validation
+- Pillow 10.3.0 - Image processing
+- imagehash 4.3.1 - Perceptual hashing
+- opencv-python 4.10.0 - ORB feature matching
+- boto3 1.40.x - S3-compatible client (Cloudflare R2 image storage)
+- openpyxl 3.1.2 - Excel file parsing
+- PyPDF2 3.0.1 - PDF file parsing
+- psycopg2-binary 2.9.9 - PostgreSQL driver
+
+**Frontend** (`frontend/package.json`):
+- React with Vite 7.x
+- React Router DOM
+- Axios - HTTP client
 
 ## Project Structure
 
@@ -25,20 +45,37 @@ Inventory_PO_Web_App/
 ├── backend/
 │   ├── app/
 │   │   ├── __init__.py
-│   │   ├── database.py      # Database configuration
-│   │   ├── models.py         # SQLAlchemy models
-│   │   ├── schemas.py        # Pydantic schemas
-│   │   ├── main.py           # FastAPI application
-│   │   └── importers.py      # Excel/PDF import logic
+│   │   ├── database.py          # Database configuration
+│   │   ├── models.py            # SQLAlchemy models
+│   │   ├── schemas.py           # Pydantic schemas
+│   │   ├── main.py              # FastAPI application
+│   │   ├── importers.py         # Excel/PDF import logic
+│   │   └── image_similarity.py  # Image deduplication (pHash + ORB)
+│   │   └── storage.py           # Image storage (local dev or Cloudflare R2)
+│   ├── static/images/           # Uploaded product images (local dev)
+│   ├── uploads/                 # Temporary import files
 │   ├── requirements.txt
+│   ├── .env.example
 │   └── run.py
 ├── frontend/
 │   ├── src/
-│   │   ├── api.js            # API client
-│   │   ├── components/       # React components
-│   │   ├── pages/            # Page components
-│   │   └── contexts/         # React contexts
-│   └── package.json
+│   │   ├── api.js               # API client
+│   │   ├── App.jsx              # Main application with routing
+│   │   ├── App.css              # Global styles
+│   │   ├── components/
+│   │   │   ├── NavBar.jsx       # Navigation bar
+│   │   │   └── ProductCard.jsx  # Product card component
+│   │   ├── pages/
+│   │   │   ├── ProductList.jsx  # Main product listing
+│   │   │   ├── ProductDetail.jsx# Product detail/edit page
+│   │   │   ├── Cart.jsx         # Shopping cart view
+│   │   │   └── Import.jsx       # Excel/PDF/manual import
+│   │   └── contexts/
+│   │       └── CartContext.jsx  # Cart state management
+│   ├── package.json
+│   └── vite.config.js
+├── sample_data/
+│   └── chinatown_invoice_sample.pdf  # Sample PDF for testing
 ├── test_core_functionality.py
 ├── README.md
 └── CHANGELOG.md
@@ -146,7 +183,7 @@ The frontend will be available at `http://localhost:5173` (or another port if 51
 3. **Cart View**: See all products with `order_qty > 0`
 4. **Import**: Upload Excel or PDF files to import products. Manual entry validates product IDs up front with live feedback, blocks submission when duplicates are detected, and disables scroll-wheel changes on numeric fields. PDF import now understands the Chinatown Supermarket invoice layout, maps Item Code → Product ID, Description → Name (including case-pack notations), Price Each → Price automatically, and reports any rows that were skipped because those products already exist in the database.
 5. **Reset**: Clear all stock and order quantities to start a new cycle
-6. **Image Upload Deduplication**: Product photos are analyzed with perceptual hashes *and* ORB feature matching. Uploads that are ≥95% similar or share enough ORB keypoints (even when padding or cropping changes) reuse the original file so storage stays lean while still linking the new product to the shared photo.
+6. **Image Upload Deduplication**: Product photos are analyzed with perceptual hashes *and* ORB feature matching. Uploads that are ≥95% similar **and** produce at least **225** high-quality ORB matches (roughly 90 % of the overlapping keypoints we see on near-identical catalog shots) reuse the original file so storage stays lean while still linking the new product to the shared photo. When you know an upload is different (e.g., fixing a mismatched catalog photo), both the Product Detail page and the Manual Input form now include an **“Always save this uploaded image”** toggle that bypasses similarity matching for that submission so you are never stuck with a stale image. These thresholds can be tuned via environment variables (see *Image Similarity Settings* below).
 
 ### PDF Import Format
 
@@ -189,6 +226,9 @@ python ../test_core_functionality.py
 
 # Or using pytest:
 pytest ../test_core_functionality.py
+
+# Need a different API port? Point the harness at it:
+# TEST_API_BASE_URL=http://localhost:8001/api python ../test_core_functionality.py
 ```
 
 The test harness seeds its own `TEST-*` products and automatically deletes them afterward, keeping your primary inventory data untouched.
@@ -207,37 +247,51 @@ This will test:
     source venv/bin/activate
     python3 -c "from PIL import Image; img = Image.open('static/images/800000_23ae6915.png'); w, h = img.size; img.crop((int(w*0.1), int(h*0.1), int(w*0.9), int(h*0.9))).save('static/images/test_01_535f18cb.png')"
     ```
+- Force-saving a new image even when it resembles an existing file (verifies the override switch on image uploads)
 - PDF invoice import (Chinatown Supermarket format, including duplicate-skipping)
 
+### One-off image similarity checks
+
+Need to verify whether two images will be treated as duplicates without going through the full API flow? Use the standalone CLI harness that ships with the backend:
+
+```bash
+cd /path/to/Inventory_PO_Web_App
+source backend/venv/bin/activate
+python backend/tests/image_similarity_cli.py \
+  backend/static/images/test_01_535f18cb.png \
+  backend/static/images/800000_23ae6915.png
+```
+
+The script prints:
+
+- The pHash similarity score versus `IMAGE_SIMILARITY_THRESHOLD`
+- ORB descriptor counts, total “good” matches, and the configured `FEATURE_MATCH_RATIO`/`FEATURE_MIN_MATCHES`
+- A final PASS/FAIL verdict that mirrors the backend’s deduplication rules (`image_similarity_threshold` OR `feature_min_matches`).
+
+Paths can be absolute, relative, or `/static/<filename>` (handy if you want to compare against an already-uploaded product image living under `settings.image_dir`). Override any of the thresholds with `--hash-threshold`, `--feature-ratio`, or `--min-feature-matches` flags to experiment without changing `.env`.
+
+## Data Model
+
+### Products Table
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | Integer (PK) | Auto-increment primary key |
+| `product_id` | String | Unique product identifier (indexed) |
+| `name` | String | Product name (indexed) |
+| `brand` | String | Brand name (indexed, optional) |
+| `price` | Numeric(10,2) | Unit price (default: 0) |
+| `stock` | Integer | Current stock quantity (default: 0) |
+| `order_qty` | Integer | Order quantity (default: 0, indexed) |
+| `image_url` | String | Product image URL (optional). Either `/static/...` (local dev) or an absolute URL (e.g. Cloudflare R2 `https://pub-...r2.dev/...`) |
+| `image_hash` | String | Perceptual hash for deduplication (optional) |
+| `remarks` | Text | Additional notes (optional) |
+| `created_at` | Timestamp | Record creation time |
+| `updated_at` | Timestamp | Last update time |
+
+**Indexes**: `product_id` (unique), `(brand, name)` for search optimization, `order_qty` for cart queries.
+
 ## Development
-
-### Running Tests
-
-The project includes a comprehensive test suite in `test_core_functionality.py`. To run the tests:
-
-1. **Ensure the backend server is running** (tests make HTTP requests to the API):
-   ```bash
-   cd backend
-   source venv/bin/activate
-   python run.py
-   ```
-
-2. **In a separate terminal, run the tests**:
-   ```bash
-   # From the project root directory
-   cd backend
-   source venv/bin/activate
-   python ../test_core_functionality.py
-   ```
-
-   Or if you prefer to use pytest (though the test file is a standalone script):
-   ```bash
-   cd backend
-   source venv/bin/activate
-   pytest ../test_core_functionality.py
-   ```
-
-The tests cover core functionality including product CRUD operations, search, cart management, image deduplication, and PDF import.
 
 ### Database Migrations
 
@@ -247,6 +301,38 @@ The application uses SQLAlchemy with automatic table creation. For production, c
 
 1. Backend: Add new endpoints in `backend/app/main.py`
 2. Frontend: Add new pages in `frontend/src/pages/` and update routing in `App.jsx`
+
+## Production Deployment (Beginner-Friendly, Free Tiers)
+
+This app is designed to be deployable with:
+- **Frontend**: Vercel (static hosting)
+- **Backend**: Render (FastAPI)
+- **Database**: Neon (PostgreSQL)
+- **Images**: Cloudflare R2 (persistent object storage)
+
+### Production Environment Variables
+
+**Frontend (Vercel)**:
+- `VITE_API_URL=https://<your-backend-domain>/api`
+
+**Backend (Render)**:
+- `DATABASE_URL=postgresql://...` (Neon connection string)
+- `CORS_ALLOW_ORIGINS=https://<your-frontend-domain>` (comma-separated list if needed)
+
+If using **Cloudflare R2** for images:
+- `R2_ENDPOINT_URL=https://<your-account-id>.r2.cloudflarestorage.com`
+- `R2_BUCKET_NAME=inventory-images`
+- `R2_ACCESS_KEY_ID=...`
+- `R2_SECRET_ACCESS_KEY=...`
+- `R2_PUBLIC_BASE_URL=https://pub-....r2.dev`
+
+### Image Similarity Settings
+
+Fine-tune deduplication behavior by adding the following to `.env` (defaults in parentheses):
+
+- `IMAGE_SIMILARITY_THRESHOLD` (default **0.95**) – minimum perceptual-hash similarity (1.0 means identical).
+- `FEATURE_MATCH_RATIO` (default **0.55**) – Lowe’s ratio threshold when evaluating ORB keypoints (lower = stricter).
+- `FEATURE_MIN_MATCHES` (default **225**) – minimum number of “good” ORB matches required before two uploads are treated as the same photo. With ORB extracting 500 descriptors per image, 225 roughly equals a 90 % structural overlap, so distinct packaging artwork will no longer collapse into a single shared image accidentally.
 
 ## Troubleshooting
 
@@ -272,6 +358,7 @@ The application uses SQLAlchemy with automatic table creation. For production, c
 - **Database connection errors**: Check your `DATABASE_URL` in `.env`. SQLite is the default and should work with system Python.
 - **Import errors**: Ensure file formats match expected templates
 - **CORS errors**: Check CORS settings in `backend/app/main.py`
+- **Pydantic `Extra inputs are not permitted` for `r2_*` env vars**: The settings loader now ignores unknown environment entries, so you can safely add the five `R2_*` values to `.env`. If you still see this error, ensure you're running version `1.2.13` or later (or pull the latest `backend/app/database.py`).
 
 ### Frontend Issues
 
@@ -288,5 +375,3 @@ The application uses SQLAlchemy with automatic table creation. For production, c
 ## License
 
 This is a personal project for internal use.
-
-# inventory-po-app

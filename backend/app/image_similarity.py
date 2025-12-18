@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from io import BytesIO
-from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 import cv2
@@ -12,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import settings
 from app.models import Product
+from app.storage import get_image_bytes
 
 _orb_cache: Dict[str, Optional[np.ndarray]] = {}
 
@@ -108,13 +108,8 @@ def get_or_store_product_hash(db: Session, product: Product) -> Optional[str]:
     if product.image_hash:
         return product.image_hash
 
-    image_path = _image_url_to_path(product.image_url)
-    if not image_path or not image_path.exists():
-        return None
-
-    try:
-        image_bytes = image_path.read_bytes()
-    except OSError:
+    image_bytes = get_image_bytes(product.image_url)
+    if not image_bytes:
         return None
 
     phash = compute_phash(image_bytes)
@@ -123,18 +118,13 @@ def get_or_store_product_hash(db: Session, product: Product) -> Optional[str]:
     return product.image_hash
 
 
-def get_orb_descriptors(image_path: Path) -> Optional[np.ndarray]:
-    cache_key = str(image_path)
+def get_orb_descriptors(image_url: str) -> Optional[np.ndarray]:
+    cache_key = str(image_url)
     if cache_key in _orb_cache:
         return _orb_cache[cache_key]
 
-    if not image_path.exists():
-        _orb_cache[cache_key] = None
-        return _orb_cache[cache_key]
-
-    try:
-        image_bytes = image_path.read_bytes()
-    except OSError:
+    image_bytes = get_image_bytes(image_url)
+    if not image_bytes:
         _orb_cache[cache_key] = None
         return _orb_cache[cache_key]
 
@@ -160,10 +150,6 @@ def find_best_image_match(
     best_method = "none"
 
     for product in query.all():
-        image_path = _image_url_to_path(product.image_url)
-        if not image_path:
-            continue
-
         # First check pHash similarity
         existing_hash = get_or_store_product_hash(db, product)
         hash_score = hash_similarity(candidate_hash, existing_hash)
@@ -174,7 +160,7 @@ def find_best_image_match(
             continue
 
         # Fallback to ORB-based matching
-        existing_desc = get_orb_descriptors(image_path)
+        existing_desc = get_orb_descriptors(product.image_url)
         if existing_desc is None:
             continue
 
@@ -192,18 +178,7 @@ def find_best_image_match(
     return best_product, best_method, best_score
 
 
-def _image_url_to_path(image_url: str) -> Optional[Path]:
-    if not image_url:
-        return None
-
-    filename = image_url.replace("/static/", "", 1) if image_url.startswith("/static/") else image_url
-    return Path(settings.image_dir) / filename
-
-
 def invalidate_orb_cache(image_url: Optional[str]):
     if not image_url:
         return
-    path = _image_url_to_path(image_url)
-    if not path:
-        return
-    _orb_cache.pop(str(path), None)
+    _orb_cache.pop(str(image_url), None)

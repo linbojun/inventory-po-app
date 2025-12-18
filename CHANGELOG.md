@@ -2,6 +2,86 @@
 
 All notable changes to the Inventory PO Web App project will be documented in this file.
 
+## [1.2.16] - 2025-12-18
+
+### Added - Standalone Image Similarity CLI
+
+**Why**: QA and support needed a lightweight way to confirm whether two catalog photos would deduplicate before going through the full product upload flow. Without tooling they had to fire the entire API harness or reproduce uploads manually, which is slow and opaque.
+
+**What**:
+- Added `backend/tests/image_similarity_cli.py`, a small test harness that accepts two image paths, computes the project’s pHash/ORB metrics, and reports whether the pair clears `IMAGE_SIMILARITY_THRESHOLD` or `FEATURE_MIN_MATCHES`.
+- Documented the new script (usage, thresholds, override flags) in `README.md` under Testing so anyone can run quick spot-checks against `/static/...` files or local samples.
+
+## [1.2.15] - 2025-12-18
+
+### Tightened - Image Similarity Thresholds
+
+**Why**: When two products share a handful of similar edges, ORB could still register enough “good” matches to reuse the older photo even though the packaging is clearly different. The team asked for a 90 % similarity requirement so only near-identical photos deduplicate automatically.
+
+**What**:
+- Raised the default ORB requirements (Lowe ratio **0.55**, minimum matches **225**) so partial look-alikes no longer collapse into the same stored image, while heavily cropped versions of the same product still clear the bar.
+- Added environment hooks (`IMAGE_SIMILARITY_THRESHOLD`, `FEATURE_MATCH_RATIO`, `FEATURE_MIN_MATCHES`) so deployments can tune the heuristics without touching the codebase.
+- Documented the stricter defaults and configuration knobs in `README.md`, including guidance on when to override them.
+
+## [1.2.14] - 2025-12-18
+
+### Fixed - Force New Image Uploads When Dedup Misfires
+
+**Why**: Operators could not replace an incorrect product photo because the similarity matcher kept reusing an existing `/static/...` image whenever the packaging looked vaguely alike. Even the "Replace Image" flow would loop back to the wrong asset, leaving the catalog stuck.
+
+**What**:
+- Added an explicit `force_new_image` flag to the upload pipeline so FastAPI can skip the deduplication query on demand while still recording the new pHash.
+- The Product Detail page and the Manual Input form now surface an “Always save this uploaded image” checkbox (enabled by default whenever a file is selected) so users can intentionally bypass dedup when fixing mismatched photos.
+- Extended the regression suite with `test_image_deduplication_force_override`, proving that identical uploads normally reuse the same path but honoring the override stores a brand-new file instead.
+- Documented the new toggle and test coverage in `README.md`.
+
+## [1.2.13] - 2025-12-18
+
+### Fixed - Settings accept Cloudflare R2 env vars
+
+**Why**: Adding the newly documented `R2_*` variables to `.env` caused FastAPI to crash on startup with Pydantic's `extra_forbidden` validation error because the `Settings` loader only allowed a hard-coded list of fields.
+
+**What**:
+- Updated `backend/app/database.py` so the settings model now ignores unknown environment entries, letting deployment-specific keys like `R2_ENDPOINT_URL` coexist with the existing database/upload knobs.
+- Documented the fix in `README.md` under Troubleshooting so anyone who sees the legacy error knows to update.
+
+## [1.2.11] - 2025-12-18
+
+### Added - Cloudflare R2 Image Storage (Production)
+
+**Why**: Local disk storage (`backend/static/images/`) does not work reliably on most free hosting platforms (ephemeral filesystems). Using Cloudflare R2 allows persistent image storage with a generous free tier and no egress fees.
+
+**What**:
+- Added an R2 (S3-compatible) storage adapter (`backend/app/storage.py`) and new environment variables (`R2_*`) to upload, fetch, and delete images from R2.
+- Updated image upload, deduplication (pHash + ORB), and orphan cleanup flows to work with either local `/static/...` images (dev) or R2 public URLs (production).
+- Updated the frontend to support absolute `image_url` values (e.g. `https://pub-...r2.dev/...`) and to use an environment-based API URL (`VITE_API_URL`) for production builds.
+
+## [1.2.12] - 2025-12-18
+
+### Fixed - Deployment Env Var Robustness
+
+**Why**: When productionalizing, it’s easy to paste connection strings from command-line examples (e.g. `psql 'postgresql://...'`) or to copy Cloudflare’s bucket-scoped “S3 API” URL. Both formats can break startup if used verbatim.
+
+**What**:
+- Normalized `DATABASE_URL` to tolerate common `psql '...url...'` copy/paste mistakes (strips the `psql` prefix and wrapping quotes) so the backend can start reliably.
+- Normalized `R2_ENDPOINT_URL` so it accepts either the bare endpoint (`https://<account>.r2.cloudflarestorage.com`) or Cloudflare’s bucket-scoped URL and still configures boto3 correctly.
+
+## [1.2.10] - 2025-12-18
+
+### Improved - README Documentation
+
+**Why**: The README was missing some important information about the project structure, dependencies, and data model, and had duplicate testing sections.
+
+**What**:
+- Added `image_similarity.py` to the project structure documentation
+- Added complete Key Dependencies section listing all major backend and frontend packages with versions
+- Added Data Model section documenting the `products` table schema including the `image_hash` column
+- Expanded project structure to show all frontend components, pages, and contexts
+- Added `static/images/`, `uploads/`, and `sample_data/` directories to the structure
+- Removed duplicate "Development > Running Tests" section (consolidated with existing Testing section)
+- Added Image Processing to Technology Stack (Pillow, imagehash, OpenCV)
+- Removed duplicate "# inventory-po-app" heading at end of file
+
 ## [1.2.9] - 2025-12-18
 
 ### Added - ORB-Assisted Image Similarity & Regression

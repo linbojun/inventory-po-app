@@ -23,6 +23,7 @@ function Import() {
     remarks: '',
   });
   const [manualError, setManualError] = useState('');
+  const [manualForceNewImage, setManualForceNewImage] = useState(true);
   const emptyProductIdCheck = () => ({
     checking: false,
     duplicate: false,
@@ -165,6 +166,7 @@ function Import() {
   const processImageFile = (file) => {
     if (!file) {
       setImageFile(null);
+      setManualForceNewImage(true);
       return;
     }
 
@@ -182,6 +184,7 @@ function Import() {
     }
 
     setImageFile(file);
+    setManualForceNewImage(true);
   };
 
   const handleImageChange = (e) => {
@@ -285,6 +288,9 @@ function Import() {
       product_id: trimmedProductId,
       name: trimmedName,
     };
+    if (imageFile) {
+      payload.force_new_image = manualForceNewImage;
+    }
 
     try {
       await productAPI.createProduct(payload, imageFile);
@@ -299,6 +305,7 @@ function Import() {
         remarks: '',
       });
       setImageFile(null);
+      setManualForceNewImage(true);
       setManualError('');
       resetProductIdCheck();
       // Reset file input
@@ -330,6 +337,7 @@ function Import() {
               setManualError('');
               setError(null);
               resetProductIdCheck();
+              setManualForceNewImage(true);
               setShowManualForm(true);
             }}
             style={styles.toggleButton}
@@ -462,6 +470,7 @@ function Import() {
                       onClick={(e) => {
                         e.stopPropagation();
                         setImageFile(null);
+                        setManualForceNewImage(true);
                         const fileInput = document.getElementById('product-image-input');
                         if (fileInput) fileInput.value = '';
                       }}
@@ -484,6 +493,21 @@ function Import() {
                     />
                   </div>
                 )}
+              </div>
+              <div style={styles.forceImageWrapper}>
+                <label style={styles.forceImageToggle}>
+                  <input
+                    type="checkbox"
+                    checked={manualForceNewImage}
+                    onChange={(e) => setManualForceNewImage(e.target.checked)}
+                    disabled={!imageFile}
+                    style={styles.forceImageCheckbox}
+                  />
+                  <span>Always save the uploaded file (skip similarity dedupe)</span>
+                </label>
+                <p style={styles.forceImageHint}>
+                  Disable only if you want the server to reuse an existing matching image automatically.
+                </p>
               </div>
             </div>
             <div style={styles.formGroup}>
@@ -522,6 +546,7 @@ function Import() {
                     remarks: '',
                   });
                   setImageFile(null);
+                setManualForceNewImage(true);
                   setManualError('');
                   resetProductIdCheck();
                   const fileInput = document.getElementById('product-image-input');
@@ -898,6 +923,25 @@ const styles = {
     cursor: 'pointer',
     fontSize: '0.85rem',
     transition: 'background-color 0.2s',
+  },
+  forceImageWrapper: {
+    marginTop: '0.5rem',
+  },
+  forceImageToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.85rem',
+    color: '#2c3e50',
+  },
+  forceImageCheckbox: {
+    width: '16px',
+    height: '16px',
+  },
+  forceImageHint: {
+    marginTop: '0.25rem',
+    fontSize: '0.75rem',
+    color: '#7f8c8d',
   },
 };
 

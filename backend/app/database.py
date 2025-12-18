@@ -1,23 +1,77 @@
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 import os
 import sys
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
 
+def _normalize_database_url(raw: str) -> str:
+    """
+    Normalize common copy/paste mistakes when setting DATABASE_URL.
+
+    Users sometimes paste a full CLI command like:
+      psql 'postgresql://user:pass@host/db?sslmode=require'
+
+    SQLAlchemy expects ONLY the URL:
+      postgresql://user:pass@host/db?sslmode=require
+    """
+    if raw is None:
+        return raw
+    value = str(raw).strip()
+    if not value:
+        return value
+
+    # Strip a leading "psql" command if present.
+    if value.lower().startswith("psql"):
+        value = value[4:].strip()
+
+    # Remove one layer of wrapping quotes.
+    if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
+        value = value[1:-1].strip()
+
+    # Occasionally a pasted value includes doubled trailing quotes like: postgresql://...'' (or "")
+    value = re.sub(r"(['\"]){2,}$", "", value).strip()
+    return value
+
+
+def _read_float_env(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _read_int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./inventory_po.db")
     upload_dir: str = os.getenv("UPLOAD_DIR", "./uploads")
     image_dir: str = os.getenv("IMAGE_DIR", "./static/images")
-    image_similarity_threshold: float = 0.95
-    feature_match_ratio: float = 0.75
-    feature_min_matches: int = 15
-    
-    class Config:
-        env_file = ".env"
+    image_similarity_threshold: float = _read_float_env("IMAGE_SIMILARITY_THRESHOLD", 0.95)
+    feature_match_ratio: float = _read_float_env("FEATURE_MATCH_RATIO", 0.55)
+    feature_min_matches: int = _read_int_env("FEATURE_MIN_MATCHES", 225)
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _validate_database_url(cls, value):
+        return _normalize_database_url(value)
 
 settings = Settings()
 

@@ -6,6 +6,7 @@ This script tests the critical use cases defined in test_proposal.md
 
 import base64
 import json
+import os
 import time
 import uuid
 from decimal import Decimal
@@ -14,7 +15,7 @@ from typing import Dict, List, Optional
 
 import requests
 
-API_BASE_URL = "http://localhost:8000/api"
+API_BASE_URL = os.getenv("TEST_API_BASE_URL") or os.getenv("API_BASE_URL") or "http://localhost:8000/api"
 TEST_PRODUCT_IDS = [
     "TEST-RESET-01",
     "TEST-RESET-02",
@@ -31,6 +32,8 @@ TEST_PRODUCT_IDS = [
     "TEST-IMG-DEDUP-3",
     "TEST-IMG-PAD-1",
     "TEST-IMG-PAD-2",
+    "TEST-IMG-FORCE-1",
+    "TEST-IMG-FORCE-2",
 ]
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -146,6 +149,7 @@ class TestRunner:
         name: str,
         image_bytes: bytes,
         brand: Optional[str] = "TestBrand",
+        force_new_image: bool = False,
     ) -> Optional[Dict]:
         """Create a product that includes an image upload."""
         data = {
@@ -156,6 +160,8 @@ class TestRunner:
             "stock": 5,
             "order_qty": 0,
         }
+        if force_new_image:
+            data["force_new_image"] = "true"
         files = {
             "image": (f"{product_id}.png", image_bytes, "image/png")
         }
@@ -561,6 +567,29 @@ class TestRunner:
 
         return first_url == second_url
 
+    def test_image_deduplication_force_override(self):
+        """TC-IMAGE-03: Forcing a new image bypasses deduplication."""
+        product_ids = ["TEST-IMG-FORCE-1", "TEST-IMG-FORCE-2"]
+        for product_id in product_ids:
+            self._delete_product_by_product_id(product_id)
+
+        shared_bytes = base64.b64decode(PATTERN_A_BASE64)
+        first = self.create_product_with_image(product_ids[0], "Image Force 1", shared_bytes)
+        second = self.create_product_with_image(
+            product_ids[1],
+            "Image Force 2",
+            shared_bytes,
+            force_new_image=True,
+        )
+        if not first or not second:
+            return False
+
+        first_url = first.get("image_url")
+        second_url = second.get("image_url")
+        if not first_url or not second_url:
+            return False
+        return first_url != second_url
+
     def _delete_product_by_product_id(self, product_id: str):
         """Delete a product by its product_id if it exists (used for cleanup)."""
         try:
@@ -611,6 +640,7 @@ class TestRunner:
                 ("Cart Edit Sync", self.test_cart_edit_sync),
                 ("Image Similarity Deduplication", self.test_image_deduplication),
                 ("Image Deduplication With Padding", self.test_image_deduplication_with_padding),
+                ("Image Force Override", self.test_image_deduplication_force_override),
                 ("PDF Import (Chinatown)", self.test_pdf_import),
             ]
             

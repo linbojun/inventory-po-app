@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { productAPI } from '../api';
+import { productAPI, resolveImageUrl } from '../api';
 
 function ProductCard({ product, onUpdate }) {
   const [orderQty, setOrderQty] = useState(product.order_qty);
@@ -34,7 +34,7 @@ function ProductCard({ product, onUpdate }) {
     <div style={styles.card}>
       <Link to={`/product/${product.id}`} style={styles.imageLink}>
         <img 
-          src={product.image_url ? `http://localhost:8000${product.image_url}` : '/placeholder-image.png'} 
+          src={resolveImageUrl(product.image_url)} 
           alt={product.name}
           style={styles.image}
           onError={(e) => {

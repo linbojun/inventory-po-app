@@ -1,6 +1,21 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+// In production set VITE_API_URL (e.g. https://your-backend.onrender.com/api)
+// For local dev it falls back to localhost.
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+export const getApiOrigin = () => {
+  // If baseURL ends with /api, strip it to get origin.
+  // Example: https://example.com/api -> https://example.com
+  if (API_BASE_URL.endsWith('/api')) return API_BASE_URL.slice(0, -4);
+  return API_BASE_URL;
+};
+
+export const resolveImageUrl = (imageUrl) => {
+  if (!imageUrl) return '/placeholder-image.png';
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) return imageUrl;
+  return `${getApiOrigin()}${imageUrl}`;
+};
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -23,13 +38,17 @@ export const productAPI = {
   // Create product (with optional image file)
   createProduct: (data, imageFile = null) => {
     const formData = new FormData();
-    formData.append('product_id', data.product_id);
-    formData.append('name', data.name);
-    if (data.brand) formData.append('brand', data.brand);
-    if (data.price !== undefined) formData.append('price', data.price);
-    if (data.stock !== undefined) formData.append('stock', data.stock);
-    if (data.order_qty !== undefined) formData.append('order_qty', data.order_qty);
-    if (data.remarks) formData.append('remarks', data.remarks);
+    const { force_new_image, ...fields } = data;
+    formData.append('product_id', fields.product_id);
+    formData.append('name', fields.name);
+    if (fields.brand) formData.append('brand', fields.brand);
+    if (fields.price !== undefined) formData.append('price', fields.price);
+    if (fields.stock !== undefined) formData.append('stock', fields.stock);
+    if (fields.order_qty !== undefined) formData.append('order_qty', fields.order_qty);
+    if (fields.remarks) formData.append('remarks', fields.remarks);
+    if (force_new_image !== undefined) {
+      formData.append('force_new_image', force_new_image ? 'true' : 'false');
+    }
     if (imageFile) formData.append('image', imageFile);
     
     return api.post('/products', formData, {
@@ -42,12 +61,16 @@ export const productAPI = {
   // Update product (with optional image file)
   updateProduct: (id, data, imageFile = null) => {
     const formData = new FormData();
-    if (data.name !== undefined) formData.append('name', data.name);
-    if (data.brand !== undefined) formData.append('brand', data.brand);
-    if (data.price !== undefined) formData.append('price', data.price);
-    if (data.stock !== undefined) formData.append('stock', data.stock);
-    if (data.order_qty !== undefined) formData.append('order_qty', data.order_qty);
-    if (data.remarks !== undefined) formData.append('remarks', data.remarks);
+    const { force_new_image, ...fields } = data;
+    if (fields.name !== undefined) formData.append('name', fields.name);
+    if (fields.brand !== undefined) formData.append('brand', fields.brand);
+    if (fields.price !== undefined) formData.append('price', fields.price);
+    if (fields.stock !== undefined) formData.append('stock', fields.stock);
+    if (fields.order_qty !== undefined) formData.append('order_qty', fields.order_qty);
+    if (fields.remarks !== undefined) formData.append('remarks', fields.remarks);
+    if (force_new_image !== undefined) {
+      formData.append('force_new_image', force_new_image ? 'true' : 'false');
+    }
     if (imageFile) formData.append('image', imageFile);
     
     return api.put(`/products/${id}`, formData, {

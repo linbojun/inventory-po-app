@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { productAPI } from '../api';
+import { productAPI, resolveImageUrl } from '../api';
 
 function ProductDetail() {
   const { id } = useParams();
@@ -21,6 +21,7 @@ function ProductDetail() {
     brand: '',
     price: 0,
   });
+  const [forceNewImage, setForceNewImage] = useState(true);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -71,6 +72,7 @@ function ProductDetail() {
     if (!file) {
       setImageFile(null);
       setImagePreview(null);
+      setForceNewImage(true);
       return;
     }
 
@@ -88,6 +90,7 @@ function ProductDetail() {
     }
 
     setImageFile(file);
+    setForceNewImage(true);
     // Create preview
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -130,7 +133,11 @@ function ProductDetail() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await productAPI.updateProduct(id, formData, imageFile);
+      const payload = { ...formData };
+      if (imageFile) {
+        payload.force_new_image = forceNewImage;
+      }
+      await productAPI.updateProduct(id, payload, imageFile);
       alert('Product updated successfully');
       navigate('/');
     } catch (err) {
@@ -200,7 +207,7 @@ function ProductDetail() {
             }}
           >
             <img
-              src={imagePreview || (product.image_url ? `http://localhost:8000${product.image_url}` : '/placeholder-image.png')}
+              src={imagePreview || resolveImageUrl(product.image_url)}
               alt={product.name}
               style={styles.image}
               onError={(e) => {
@@ -227,12 +234,27 @@ function ProductDetail() {
             {imageFile && (
               <>
                 <p style={styles.imageFileInfo}>New image: {imageFile.name}</p>
+                <label style={styles.forceImageToggle}>
+                  <input
+                    type="checkbox"
+                    checked={forceNewImage}
+                    onChange={(e) => setForceNewImage(e.target.checked)}
+                    style={styles.forceImageCheckbox}
+                  />
+                  <span>
+                    Always save this uploaded image (skip similarity dedupe)
+                  </span>
+                </label>
+                <p style={styles.forceImageHint}>
+                  Uncheck if you want the app to reuse an existing match automatically.
+                </p>
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setImageFile(null);
                     setImagePreview(null);
+                    setForceNewImage(true);
                     const fileInput = document.querySelector('#product-detail-image-input');
                     if (fileInput) fileInput.value = '';
                   }}
@@ -437,6 +459,23 @@ const styles = {
     marginTop: '0.5rem',
     fontSize: '0.85rem',
     color: '#27ae60',
+  },
+  forceImageToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginTop: '0.5rem',
+    fontSize: '0.85rem',
+    color: '#2c3e50',
+  },
+  forceImageCheckbox: {
+    width: '16px',
+    height: '16px',
+  },
+  forceImageHint: {
+    marginTop: '0.25rem',
+    fontSize: '0.75rem',
+    color: '#7f8c8d',
   },
   removeImageButton: {
     marginTop: '0.5rem',

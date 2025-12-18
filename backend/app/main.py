@@ -16,6 +16,7 @@ from app.image_similarity import (
     find_best_image_match,
     invalidate_orb_cache,
 )
+from app.storage import is_r2_enabled, put_image_object, delete_image
 from app.models import Product
 from app.schemas import (
     ProductCreate, ProductUpdate, ProductResponse, ProductListResponse,
@@ -29,70 +30,76 @@ ensure_schema_updates()
 
 app = FastAPI(title="Inventory PO API", version="1.0.0")
 
+# Configure CORS origins:
+# - Default is local dev servers
+# - In production, set CORS_ALLOW_ORIGINS as a comma-separated list
+#   e.g. https://your-app.vercel.app,https://your-custom-domain.com
+def _get_cors_allow_origins() -> List[str]:
+    raw = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+    if not raw:
+        return ["http://localhost:3000", "http://localhost:5173"]
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # React dev servers
-    allow_credentials=True,
+    allow_origins=_get_cors_allow_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Mount static files for images
+# Mount static files for images (local dev storage)
 os.makedirs(settings.image_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=settings.image_dir), name="static")
 
-def save_uploaded_image(image_file: UploadFile, product_id: str) -> Optional[str]:
-    """
-    Save uploaded image file to filesystem and return the relative path.
-    Returns None if no file was provided.
-    """
-    if not image_file or not image_file.filename:
-        return None
-    
-    # Get file extension
-    file_ext = Path(image_file.filename).suffix.lower()
-    allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
-    
+
+def _allowed_image_extension(filename: str) -> str:
+    file_ext = Path(filename).suffix.lower()
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
     if file_ext not in allowed_extensions:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid image format. Allowed: {', '.join(allowed_extensions)}"
+            detail=f"Invalid image format. Allowed: {', '.join(sorted(allowed_extensions))}",
         )
+    return file_ext
+
+
+def save_uploaded_image(file_bytes: bytes, original_filename: str, product_id: str, content_type: Optional[str]) -> Optional[str]:
+    """
+    Save uploaded image either to filesystem (dev) or R2 (prod) and return the URL/path.
+    Returns None if no file was provided.
+    """
+    if not original_filename:
+        return None
+    
+    # Get file extension
+    file_ext = _allowed_image_extension(original_filename)
     
     # Generate unique filename: product_id_timestamp_uuid.ext
     unique_filename = f"{product_id}_{uuid.uuid4().hex[:8]}{file_ext}"
-    file_path = os.path.join(settings.image_dir, unique_filename)
     
     try:
-        # Save the file
+        if is_r2_enabled():
+            key = f"images/{unique_filename}"
+            return put_image_object(key=key, data=file_bytes or b"", content_type=content_type)
+
+        # Local dev storage
+        file_path = os.path.join(settings.image_dir, unique_filename)
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(image_file.file, buffer)
-        
-        # Optional: Resize/optimize image (can be added later)
-        # For now, just return the relative path
+            buffer.write(file_bytes or b"")
         return f"/static/{unique_filename}"
     except Exception as e:
-        # Clean up on error
-        if os.path.exists(file_path):
-            os.remove(file_path)
         raise HTTPException(status_code=500, detail=f"Failed to save image: {str(e)}")
 
 def delete_image_file(image_path: Optional[str]):
-    """Delete image file from filesystem if it exists"""
+    """Delete image from storage if it exists"""
     if not image_path:
         return
-    
-    # Extract filename from path (e.g., "/static/image.jpg" -> "image.jpg")
-    if image_path.startswith("/static/"):
-        filename = image_path.replace("/static/", "")
-        file_path = os.path.join(settings.image_dir, filename)
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-                invalidate_orb_cache(image_path)
-            except Exception:
-                pass  # Ignore errors when deleting old images
+    try:
+        delete_image(image_path)
+    finally:
+        invalidate_orb_cache(image_path)
 
 
 def delete_image_if_orphan(db: Session, image_path: Optional[str], exclude_product_id: Optional[int] = None):
@@ -113,17 +120,29 @@ async def process_uploaded_image(
     image_file: UploadFile,
     product_identifier: str,
     exclude_product_id: Optional[int] = None,
+    force_new_image: bool = False,
 ) -> Tuple[Optional[str], Optional[str], bool]:
-    """Process upload with similarity deduplication."""
+    """Process upload with optional similarity deduplication."""
     if not image_file or not image_file.filename:
         return None, None, False
 
     file_bytes = await image_file.read()
     if file_bytes is None:
         file_bytes = b""
+    # Validate extension early
+    _allowed_image_extension(image_file.filename)
 
-    image_file.file.seek(0)
     candidate_hash = compute_phash(file_bytes)
+
+    if force_new_image:
+        saved_path = save_uploaded_image(
+            file_bytes=file_bytes,
+            original_filename=image_file.filename,
+            product_id=product_identifier,
+            content_type=image_file.content_type,
+        )
+        return saved_path, candidate_hash, False
+
     candidate_descriptors = extract_orb_features(file_bytes)
 
     matched_product, _, _ = find_best_image_match(
@@ -135,7 +154,12 @@ async def process_uploaded_image(
     if matched_product and matched_product.image_url:
         return matched_product.image_url, matched_product.image_hash or candidate_hash, True
 
-    saved_path = save_uploaded_image(image_file, product_identifier)
+    saved_path = save_uploaded_image(
+        file_bytes=file_bytes,
+        original_filename=image_file.filename,
+        product_id=product_identifier,
+        content_type=image_file.content_type,
+    )
     return saved_path, candidate_hash, False
 
 
@@ -221,6 +245,7 @@ async def create_product(
     order_qty: Optional[int] = Form(0),
     remarks: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
+    force_new_image: bool = Form(False),
     db: Session = Depends(get_db)
 ):
     """Create a new product with optional image upload"""
@@ -235,7 +260,12 @@ async def create_product(
     image_path = None
     image_hash = None
     if image:
-        image_path, image_hash, _ = await process_uploaded_image(db, image, product_id)
+        image_path, image_hash, _ = await process_uploaded_image(
+            db,
+            image,
+            product_id,
+            force_new_image=force_new_image,
+        )
     
     # Create product
     db_product = Product(
@@ -267,6 +297,7 @@ async def update_product(
     order_qty: Optional[int] = Form(None),
     remarks: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
+    force_new_image: bool = Form(False),
     db: Session = Depends(get_db)
 ):
     """Update a product with optional image replacement"""
@@ -300,6 +331,7 @@ async def update_product(
             image,
             db_product.product_id,
             exclude_product_id=db_product.id,
+            force_new_image=force_new_image,
         )
         if new_image_path:
             db_product.image_url = new_image_path
