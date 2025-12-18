@@ -289,3 +289,4 @@ The application uses SQLAlchemy with automatic table creation. For production, c
 
 This is a personal project for internal use.
 
+# inventory-po-app
