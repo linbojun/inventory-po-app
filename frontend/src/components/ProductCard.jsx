@@ -4,17 +4,20 @@ import { productAPI, resolveImageUrl } from '../api';
 
 function ProductCard({ product, onUpdate }) {
   const [orderQty, setOrderQty] = useState(product.order_qty);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [stockCount, setStockCount] = useState(product.stock);
+  const [isOrderUpdating, setIsOrderUpdating] = useState(false);
+  const [isStockUpdating, setIsStockUpdating] = useState(false);
 
   // Sync local state when product prop changes (e.g., after Clear All)
   useEffect(() => {
     setOrderQty(product.order_qty);
-  }, [product.order_qty]);
+    setStockCount(product.stock);
+  }, [product.order_qty, product.stock]);
 
   const handleOrderQtyChange = async (newQty) => {
     if (newQty < 0) return;
     
-    setIsUpdating(true);
+    setIsOrderUpdating(true);
     try {
       await productAPI.updateOrderQty(product.id, newQty);
       setOrderQty(newQty);
@@ -23,12 +26,30 @@ function ProductCard({ product, onUpdate }) {
       alert('Failed to update order quantity: ' + (error.response?.data?.detail || error.message));
       setOrderQty(product.order_qty);
     } finally {
-      setIsUpdating(false);
+      setIsOrderUpdating(false);
     }
   };
 
-  const increment = () => handleOrderQtyChange(orderQty + 1);
-  const decrement = () => handleOrderQtyChange(Math.max(0, orderQty - 1));
+  const handleStockChange = async (newStock) => {
+    if (newStock < 0) return;
+
+    setIsStockUpdating(true);
+    try {
+      await productAPI.updateStock(product.id, newStock);
+      setStockCount(newStock);
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      alert('Failed to update stock: ' + (error.response?.data?.detail || error.message));
+      setStockCount(product.stock);
+    } finally {
+      setIsStockUpdating(false);
+    }
+  };
+
+  const incrementOrder = () => handleOrderQtyChange(orderQty + 1);
+  const decrementOrder = () => handleOrderQtyChange(Math.max(0, orderQty - 1));
+  const incrementStock = () => handleStockChange(stockCount + 1);
+  const decrementStock = () => handleStockChange(Math.max(0, stockCount - 1));
 
   return (
     <div style={styles.card}>
@@ -51,14 +72,43 @@ function ProductCard({ product, onUpdate }) {
         <div style={styles.info}>
           <div style={styles.stock}>
             <span style={styles.label}>Stock:</span>
-            <span style={styles.value}>{product.stock}</span>
+            <div style={styles.qtyControls}>
+              <button
+                onClick={decrementStock}
+                disabled={isStockUpdating || stockCount === 0}
+                style={styles.qtyButton}
+                title="Decrease stock"
+              >
+                ↓
+              </button>
+              <input
+                type="number"
+                value={stockCount}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  const nextValue = Number.isNaN(val) ? 0 : val;
+                  if (nextValue >= 0) handleStockChange(nextValue);
+                }}
+                style={styles.qtyInput}
+                min="0"
+                disabled={isStockUpdating}
+              />
+              <button
+                onClick={incrementStock}
+                disabled={isStockUpdating}
+                style={styles.qtyButton}
+                title="Increase stock"
+              >
+                ↑
+              </button>
+            </div>
           </div>
           <div style={styles.orderQty}>
             <span style={styles.label}>Order:</span>
             <div style={styles.qtyControls}>
               <button 
-                onClick={decrement} 
-                disabled={isUpdating || orderQty === 0}
+                onClick={decrementOrder} 
+                disabled={isOrderUpdating || orderQty === 0}
                 style={styles.qtyButton}
                 title="Decrease order quantity"
               >
@@ -68,16 +118,17 @@ function ProductCard({ product, onUpdate }) {
                 type="number"
                 value={orderQty}
                 onChange={(e) => {
-                  const val = parseInt(e.target.value) || 0;
-                  if (val >= 0) handleOrderQtyChange(val);
+                  const val = parseInt(e.target.value, 10);
+                  const nextValue = Number.isNaN(val) ? 0 : val;
+                  if (nextValue >= 0) handleOrderQtyChange(nextValue);
                 }}
                 style={styles.qtyInput}
                 min="0"
-                disabled={isUpdating}
+                disabled={isOrderUpdating}
               />
               <button 
-                onClick={increment} 
-                disabled={isUpdating}
+                onClick={incrementOrder} 
+                disabled={isOrderUpdating}
                 style={styles.qtyButton}
                 title="Increase order quantity"
               >
@@ -169,11 +220,6 @@ const styles = {
     fontSize: '0.9rem',
     color: '#34495e',
     fontWeight: '500',
-  },
-  value: {
-    fontSize: '0.9rem',
-    color: '#2c3e50',
-    fontWeight: '600',
   },
   qtyControls: {
     display: 'flex',

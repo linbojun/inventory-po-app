@@ -2,6 +2,28 @@
 
 All notable changes to the Inventory PO Web App project will be documented in this file.
 
+## [1.2.21] - 2025-12-18
+
+### Added - Explicit dev/prod runtime modes
+
+**Why**: Local contributors wanted a one-line command that forces SQLite + filesystem images without juggling environment variables, while production deployments must continue using PostgreSQL and Cloudflare R2. Tying the behavior to a CLI flag avoids accidental production misconfigurations.
+
+**What**:
+- Introduced a `--dev` flag on `backend/run.py` that reloads `.env`, sets `DATABASE_URL` to `SQLITE_DATABASE_URL`, and forces local image storage before FastAPI spins up.
+- `app/storage.py` now honors the `APP_MODE`/`FORCE_LOCAL_IMAGE_STORAGE` toggle so R2 uploads/downloads are skipped when dev mode is active.
+- Documented the new workflow in `README.md`, highlighting the difference between `python run.py --dev` (SQLite/IMAGE_DIR) and `python run.py` (PostgreSQL/R2).
+
+## [1.2.20] - 2025-12-18
+
+### Added - Inline stock editing from the main list
+
+**Why**: Adjusting inventory counts required opening each Product Detail page, while order quantities were already editable inline. Store operators asked to treat stock the same way so recounts and quick corrections can happen directly from the list view.
+
+**What**:
+- Added a dedicated `PATCH /api/products/{id}/stock` route plus a `StockUpdate` schema so FastAPI validates non-negative values before persisting.
+- Exposed `productAPI.updateStock` on the frontend and enhanced each product card with the same +/- controls used for order quantities, keeping the grid in sync via the existing refresh hook.
+- Expanded `test_core_functionality.py` with new stock-focused test cases (inline update + validation) so the regression suite enforces the behavior, and documented the new flow/API surface in `README.md`.
+
 ## [1.2.19] - 2025-12-18
 
 ### Fixed - Render deployments now whitelist Vercel by default

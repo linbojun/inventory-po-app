@@ -100,6 +100,11 @@ export const productAPI = {
     return api.patch(`/products/${id}/order-qty`, { order_qty: orderQty });
   },
 
+  // Quick update stock level
+  updateStock: (id, stock) => {
+    return api.patch(`/products/${id}/stock`, { stock });
+  },
+
   // Get cart (products with order_qty > 0)
   getCart: (params = {}) => {
     return api.get('/cart', { params });

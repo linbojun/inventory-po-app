@@ -20,7 +20,7 @@ from app.storage import is_r2_enabled, put_image_object, delete_image
 from app.models import Product
 from app.schemas import (
     ProductCreate, ProductUpdate, ProductResponse, ProductListResponse,
-    OrderQtyUpdate, ImportSummary, ResetResponse
+    OrderQtyUpdate, StockUpdate, ImportSummary, ResetResponse
 )
 from app.importers import parse_excel, parse_pdf
 
@@ -414,6 +414,19 @@ def update_order_qty(id: int, order_update: OrderQtyUpdate, db: Session = Depend
         raise HTTPException(status_code=404, detail="Product not found")
     
     db_product.order_qty = order_update.order_qty
+    db.commit()
+    db.refresh(db_product)
+    return db_product
+
+
+@app.patch("/api/products/{id}/stock", response_model=ProductResponse)
+def update_stock(id: int, stock_update: StockUpdate, db: Session = Depends(get_db)):
+    """Quick update of product stock"""
+    db_product = db.query(Product).filter(Product.id == id).first()
+    if not db_product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    db_product.stock = stock_update.stock
     db.commit()
     db.refresh(db_product)
     return db_product

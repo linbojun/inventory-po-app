@@ -21,6 +21,8 @@ TEST_PRODUCT_IDS = [
     "TEST-SEARCH-ABC",
     "TEST-DETAIL-01",
     "TEST-LIST-01",
+    "TEST-STOCK-01",
+    "TEST-STOCK-VAL",
     "TEST-VALID-01",
     "TEST-CART-01",
     "TEST-CART-02",
@@ -311,6 +313,47 @@ class TestRunner:
         cart_product = next((p for p in cart.get("items", []) if p["product_id"] == "TEST-LIST-01"), None)
         
         return cart_product is not None and cart_product["order_qty"] == 5
+
+    def test_inline_stock_update(self):
+        """TC-LIST-STOCK-01: Test inline stock update"""
+        product = self.create_test_product("TEST-STOCK-01", "Stock Inline Test", stock=4, order_qty=0)
+        if not product:
+            return False
+
+        # Update stock via PATCH
+        response = requests.patch(
+            f"{self.base_url}/products/{product['id']}/stock",
+            json={"stock": 11}
+        )
+        if response.status_code != 200:
+            return False
+
+        # Verify in main list
+        response = requests.get(f"{self.base_url}/products?search=TEST-STOCK-01")
+        results = response.json()
+        found_product = next((p for p in results.get("items", []) if p["product_id"] == "TEST-STOCK-01"), None)
+        if not found_product or found_product.get("stock") != 11:
+            return False
+
+        # Verify detail endpoint also reflects the change
+        detail = self.get_product_by_id(product["id"])
+        return detail is not None and detail.get("stock") == 11
+
+    def test_stock_validation(self):
+        """TC-LIST-STOCK-02: Stock cannot be negative"""
+        product = self.create_test_product("TEST-STOCK-VAL", "Stock Validation Test", stock=3, order_qty=0)
+        if not product:
+            return False
+
+        response = requests.patch(
+            f"{self.base_url}/products/{product['id']}/stock",
+            json={"stock": -5}
+        )
+        if response.status_code not in [400, 422]:
+            return False
+
+        updated = self.get_product_by_id(product["id"])
+        return updated is not None and updated.get("stock") == 3
     
     def test_order_qty_validation(self):
         """TC-LIST-02: Test order quantity cannot be negative"""
@@ -539,6 +582,8 @@ class TestRunner:
                 ("Search Functionality", self.test_search),
                 ("Product Detail Update", self.test_product_detail_update),
                 ("Inline Order Qty Update", self.test_inline_order_qty_update),
+                 ("Inline Stock Update", self.test_inline_stock_update),
+                 ("Stock Validation", self.test_stock_validation),
                 ("Order Qty Validation", self.test_order_qty_validation),
                 ("Cart View", self.test_cart_view),
                 ("Cart Edit Sync", self.test_cart_edit_sync),

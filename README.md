@@ -150,10 +150,19 @@ ENABLE_VERCEL_PREVIEW_CORS=true
 
 5. Run the backend server:
 ```bash
+# Local development (SQLite + local /static images)
+python run.py --dev
+
+# Production-style run (PostgreSQL + R2, requires env vars)
 python run.py
 ```
 
 The API will be available at `http://localhost:8000`
+
+#### Backend Modes
+
+- `python run.py --dev` – Forces SQLite via `SQLITE_DATABASE_URL` (defaults to `sqlite:///./inventory_po.db`) and stores uploaded images under the configured `IMAGE_DIR` (default `./static/images`). R2 credentials are ignored so everything stays local.
+- `python run.py` – Runs in production mode. Whatever `DATABASE_URL` and `R2_*` variables are present will be used (PostgreSQL + R2 by default).
 
 ### Frontend Setup
 
@@ -194,7 +203,7 @@ The frontend will be available at `http://localhost:5173` (or another port if 51
 
 ### Core Features
 
-1. **Product List**: Browse all products with search and sorting capabilities
+1. **Product List**: Browse all products with search and sorting controls, adjust both stock levels and order quantities inline, and see changes propagate instantly across the list and cart views.
 2. **Product Detail**: View, edit, and delete full product information. Stock, order quantity, and price inputs now ignore mouse-wheel changes to prevent accidental adjustments during scrolling, deletions are gated behind a confirmation prompt, and clearing the Remarks field now truly removes the stored note.
 3. **Cart View**: See all products with `order_qty > 0`
 4. **Import**: Upload Excel or PDF files to import products. Manual entry validates product IDs up front with live feedback, blocks submission when duplicates are detected, and disables scroll-wheel changes on numeric fields. PDF import now understands the Chinatown Supermarket invoice layout, maps Item Code → Product ID, Description → Name (including case-pack notations), Price Each → Price automatically, and reports any rows that were skipped because those products already exist in the database.
@@ -219,6 +228,7 @@ The frontend will be available at `http://localhost:5173` (or another port if 51
 - `POST /api/products` - Create new product
 - `PUT /api/products/{id}` - Update product
 - `PATCH /api/products/{id}/order-qty` - Quick update order quantity
+- `PATCH /api/products/{id}/stock` - Quick update stock
 - `GET /api/cart` - Get cart items (products with order_qty > 0)
 - `POST /api/products/reset` - Reset all products
 - `POST /api/import/excel` - Import from Excel
@@ -253,8 +263,8 @@ This will test:
 - Global reset functionality
 - Search functionality
 - Product detail updates
-- Inline order quantity updates
-- Validation
+- Inline order quantity and stock updates
+- Validation on both order_qty and stock values
 - Cart view and synchronization
 - PDF invoice import (Chinatown Supermarket format, including duplicate-skipping)
 

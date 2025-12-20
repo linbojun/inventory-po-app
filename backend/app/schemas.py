@@ -36,6 +36,10 @@ class ProductResponse(ProductBase):
 class OrderQtyUpdate(BaseModel):
     order_qty: int = Field(ge=0)
 
+
+class StockUpdate(BaseModel):
+    stock: int = Field(ge=0)
+
 class ProductListResponse(BaseModel):
     items: list[ProductResponse]
     total: int

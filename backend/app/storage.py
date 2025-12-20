@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
+import os
 
 from fastapi import HTTPException
 
@@ -53,6 +54,13 @@ def _normalize_r2_endpoint_url(endpoint_url: str, bucket_name: str) -> str:
         return trimmed
 
 
+def _is_local_storage_forced() -> bool:
+    flag = os.getenv("FORCE_LOCAL_IMAGE_STORAGE", "")
+    app_mode = os.getenv("APP_MODE", "")
+    truthy = {"1", "true", "yes", "y"}
+    return flag.lower() in truthy or app_mode.lower() == "dev"
+
+
 def get_r2_config() -> Optional[R2Config]:
     """
     R2 is enabled when ALL required env vars are present:
@@ -62,6 +70,8 @@ def get_r2_config() -> Optional[R2Config]:
       - R2_SECRET_ACCESS_KEY
       - R2_PUBLIC_BASE_URL (typically your https://pub-...r2.dev)
     """
+    if _is_local_storage_forced():
+        return None
     endpoint_url = _get_env("R2_ENDPOINT_URL")
     bucket_name = _get_env("R2_BUCKET_NAME")
     access_key_id = _get_env("R2_ACCESS_KEY_ID")
