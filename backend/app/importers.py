@@ -422,12 +422,44 @@ def _is_footer_line(normalized_line: str) -> bool:
 
 
 def _looks_like_chinatown_summary_line(line: str) -> bool:
+    """
+    Check if a line looks like a Chinatown invoice summary line.
+    Summary lines contain price/amount values and typically have either:
+    - A long digit sequence (barcode or numeric product ID)
+    - An alphanumeric product ID pattern (like GT-099, JK51029, HOOK)
+    """
     has_decimal = bool(PDF_CURRENCY_PATTERN.search(line))
+    if not has_decimal:
+        return False
+    
+    # Check for long digit sequences (barcodes or numeric product IDs)
     has_long_digits = bool(re.search(r"\d{5,}", line))
-    return has_decimal and has_long_digits
+    
+    # Check for alphanumeric product ID patterns (letters followed by optional dash and digits)
+    # Examples: GT-099, JE-3345, JK51029, JKK283, JL8166
+    has_alphanumeric_id = bool(re.search(r"[A-Z]{1,4}[-]?\d{2,5}\b", line))
+    
+    # Special case: all-letter product IDs like "HOOK" at the end after amount
+    # Pattern: decimal amount (1+ digits, dot, 2 digits) immediately followed by 2-10 uppercase letters
+    # Examples: "0.00HOOK", "60.00HOOK"
+    has_letter_only_id = bool(re.search(r"\d+\.\d{2}[A-Z]{2,10}\b", line))
+    
+    return has_long_digits or has_alphanumeric_id or has_letter_only_id
 
 
 def _parse_chinatown_summary_line(line: str) -> Optional[Tuple[Decimal, Optional[str], Optional[str]]]:
+    """
+    Parse a Chinatown invoice summary line to extract price, product ID, and pack text.
+    
+    Summary line format typically:
+    [pack_text] [qty] [price] [amount] [product_id] [barcode]
+    
+    Examples:
+    - '10PCS/BX, 10 BX/CS20 10.00 200.00GT-099 859176000518'
+    - '12 PCS / BX, 288 PCS / CS72 1.50 108.00JE-3345 4930428833453'
+    - '6PCS/ BX, 60PCS/CS6 13.00 78.00JK51029 4945569510293'
+    - 'S/S HOOK 挂钩 20 0.00 0.00HOOK'
+    """
     decimal_matches = list(PDF_CURRENCY_PATTERN.finditer(line))
     if not decimal_matches:
         return None
@@ -439,10 +471,46 @@ def _parse_chinatown_summary_line(line: str) -> Optional[Tuple[Decimal, Optional
 
     product_id = None
     if tail_text:
-        id_match = re.search(r"(\d{5,8})", tail_text)
-        if id_match:
-            product_id = id_match.group(1)[-6:]
+        # First, try to extract alphanumeric product IDs
+        # Pattern: 1-4 letters, optional dash, 2-5 digits (e.g., GT-099, JE-3345, JK51029, JKK283)
+        alphanumeric_match = re.match(r"([A-Z]{1,4}[-]?\d{2,5})\b", tail_text)
+        if alphanumeric_match:
+            product_id = alphanumeric_match.group(1)
+        else:
+            # Check for letter-only product IDs (e.g., HOOK)
+            # These appear right after the amount value with no space
+            letter_only_match = re.match(r"([A-Z]{2,10})\b", tail_text)
+            if letter_only_match:
+                candidate = letter_only_match.group(1)
+                # Make sure it's not a common word/unit
+                common_words = {"PCS", "BOX", "BX", "CS", "SET", "BG", "BD", "PC"}
+                if candidate not in common_words:
+                    product_id = candidate
+            
+            # If no alphanumeric ID found, try numeric ID
+            if not product_id:
+                id_match = re.search(r"(\d{5,8})", tail_text)
+                if id_match:
+                    product_id = id_match.group(1)[-6:]
+    
+    # Check if product ID is stuck to the amount value (no space between)
+    # e.g., "200.00GT-099" or "0.00HOOK"
+    if not product_id and amount_match:
+        amount_end_pos = amount_match.end()
+        remaining = line[amount_end_pos:]
+        # Check if alphanumeric ID starts immediately after amount
+        stuck_alpha_match = re.match(r"([A-Z]{1,4}[-]?\d{2,5})\b", remaining)
+        if stuck_alpha_match:
+            product_id = stuck_alpha_match.group(1)
+        else:
+            stuck_letter_match = re.match(r"([A-Z]{2,10})\b", remaining)
+            if stuck_letter_match:
+                candidate = stuck_letter_match.group(1)
+                common_words = {"PCS", "BOX", "BX", "CS", "SET", "BG", "BD", "PC"}
+                if candidate not in common_words:
+                    product_id = candidate
 
+    # Fallback: look for 6-digit numeric product ID anywhere in the line
     if not product_id:
         fallback_match = re.search(r"(\d{6})", line)
         if fallback_match:

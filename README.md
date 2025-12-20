@@ -219,6 +219,7 @@ The frontend will be available at `http://localhost:5173` (or another port if 51
 - The Import page now renders the skipped list with the existing name, incoming name (when different), and the server-supplied reason so you can reconcile conflicts without digging into logs.
 - A reference invoice used by the automated tests lives at `sample_data/chinatown_invoice_sample.pdf`; you can reuse it to validate the workflow manually or extend it with your own pricing.
 - **Reliability update (2025-12-17):** PDF rows are now parsed even when the `Item Code` column begins at character index `0`, which previously caused every line to be skipped. The core regression suite exercises this exact invoice so future changes can’t silently break the import path again.
+- **Alphanumeric product ID support (2025-12-20):** The PDF importer now correctly recognizes product IDs that contain letters, not just pure 6-digit numeric codes. Supported formats include letter-dash-digit patterns (`GT-099`, `JE-3345`), letter-digit concatenations (`JK51029`, `JKK283`, `JL8166`), and letter-only codes (`HOOK`).
 
 ### API Endpoints
 

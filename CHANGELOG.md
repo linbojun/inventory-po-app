@@ -2,6 +2,30 @@
 
 All notable changes to the Inventory PO Web App project will be documented in this file.
 
+## [1.2.22] - 2025-12-20
+
+### Fixed - PDF import now correctly recognizes alphanumeric product IDs
+
+**Why**: When importing products from Chinatown Supermarket invoices, the PDF parser was only extracting 6-digit numeric product IDs correctly. Products with alphanumeric IDs (like `GT-099`, `JE-3345`, `JK51029`, `JKK283`, `JL8166`, or letter-only IDs like `HOOK`) were being incorrectly parsed—either getting wrong digits extracted from barcodes, or being skipped entirely.
+
+**What**:
+- Updated `_looks_like_chinatown_summary_line()` in `backend/app/importers.py` to recognize lines containing alphanumeric product IDs, not just lines with long digit sequences.
+- Enhanced `_parse_chinatown_summary_line()` to extract alphanumeric product IDs in these formats:
+  - Letter-dash-digit patterns: `GT-099`, `JE-3345`
+  - Letter-digit concatenated patterns: `JK51029`, `JKK283`, `JL8166`
+  - Letter-only IDs: `HOOK`
+- Added test scripts (`test_pdf_fix.py`, `debug_pdf_parsing.py`) to verify the fix against the sample Chinatown invoice.
+
+**Examples of corrected product ID extraction**:
+| Product Name | Before (Wrong) | After (Correct) |
+|--------------|----------------|-----------------|
+| COOKING TORCH | 917600 | GT-099 |
+| JAPANESE TEA BAG | 304288 | JE-3345 |
+| JAPANESE SUSHI KNIFE | 51029 | JK51029 |
+| TRIANGLE ONIGIRI MOLD | 568108 | JKK283 |
+| JP SUSHI ROLLER - W | 734300 | JL8166 |
+| S/S HOOK 挂钩 | (not found) | HOOK |
+
 ## [1.2.21] - 2025-12-18
 
 ### Added - Explicit dev/prod runtime modes
