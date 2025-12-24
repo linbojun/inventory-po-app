@@ -148,6 +148,10 @@ When uploading a product image:
 3.  If a match is found (≥95% similarity AND ≥225 feature matches), the **existing file path** is reused.
 4.  **Override**: You can toggle "Always save this uploaded image" in the UI to bypass this check if necessary.
 
+### Product Detail Editing
+- Edit name, brand, price, stock, order quantity, and remarks inline.
+- A dedicated **Update Product ID** button unlocks a guarded editor. After you enter a new ID, a confirmation window summarizes the change (showing both the previous and proposed IDs) so you can double-check before the update is saved.
+
 ---
 
 ## API Reference
@@ -176,6 +180,7 @@ Tests the full flow: API, DB, resets, and PDF import logic.
 cd backend
 python ../test_core_functionality.py
 ```
+This regression harness covers global resets, search, detail edits (including the product ID confirmation flow and repeated rename cases), inline stock/quantity adjustments, cart synchronization, and the Chinatown PDF importer.
 
 **2. PDF Extraction Test**
 Verifies the position-based parser against various ID formats.

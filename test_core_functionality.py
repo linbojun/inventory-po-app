@@ -20,6 +20,12 @@ TEST_PRODUCT_IDS = [
     "TEST-RESET-02",
     "TEST-SEARCH-ABC",
     "TEST-DETAIL-01",
+    "TEST-ID-BASE",
+    "TEST-ID-TARGET",
+    "TEST-ID-RENAMED",
+    "TEST-ID-FLOW-ORIG",
+    "TEST-ID-FLOW-RENAMED",
+    "TEST-ID-FLOW-FINAL",
     "TEST-LIST-01",
     "TEST-STOCK-01",
     "TEST-STOCK-VAL",
@@ -276,6 +282,19 @@ class TestRunner:
         if not (updated["stock"] == 8 and updated["remarks"] == "counted on 2025-12-10"):
             return False
 
+        # Update product_id and verify confirmation path works
+        new_product_id = "TEST-DETAIL-RENAMED"
+        response = requests.put(
+            f"{self.base_url}/products/{product['id']}",
+            data={"product_id": new_product_id}
+        )
+        if response.status_code != 200:
+            return False
+        renamed = self.get_product_by_id(product["id"])
+        if not renamed or renamed["product_id"] != new_product_id:
+            return False
+        self.created_product_ids.add(new_product_id)
+
         # Clear remarks (set to empty string should store as null)
         response = self._put_multipart(
             f"{self.base_url}/products/{product['id']}",
@@ -285,6 +304,96 @@ class TestRunner:
             return False
         cleared = self.get_product_by_id(product["id"])
         return cleared is not None and cleared["remarks"] is None
+    
+    def test_product_id_edit_conflicts(self):
+        """TC-DETAIL-02: Ensure product_id edits enforce uniqueness and succeed when valid."""
+        original = self.create_test_product("TEST-ID-BASE", "Existing Product", stock=5, order_qty=1)
+        target = self.create_test_product("TEST-ID-TARGET", "Renamable Product", stock=3, order_qty=0)
+        if not original or not target:
+            return False
+
+        # Attempt to rename to a product_id that already exists (should fail with validation error)
+        conflict_response = requests.put(
+            f"{self.base_url}/products/{target['id']}",
+            data={"product_id": "TEST-ID-BASE"}
+        )
+        if conflict_response.status_code not in (400, 409, 422):
+            return False
+
+        # Verify the target product_id was not changed after the failed attempt
+        target_after_conflict = self.get_product_by_id(target["id"])
+        if not target_after_conflict or target_after_conflict["product_id"] != "TEST-ID-TARGET":
+            return False
+
+        # Now rename to a brand-new unique product_id
+        new_product_id = "TEST-ID-RENAMED"
+        rename_response = requests.put(
+            f"{self.base_url}/products/{target['id']}",
+            data={"product_id": new_product_id}
+        )
+        if rename_response.status_code != 200:
+            return False
+
+        renamed = self.get_product_by_id(target["id"])
+        if not renamed or renamed["product_id"] != new_product_id:
+            return False
+
+        # Track the new identifier for cleanup and ensure the original product stayed untouched
+        self.created_product_ids.add(new_product_id)
+        original_after = self.get_product_by_id(original["id"])
+        return original_after is not None and original_after["product_id"] == "TEST-ID-BASE"
+    
+    def test_product_id_update_flow(self):
+        """TC-DETAIL-03: Ensure consecutive product_id edits persist and leave no stale aliases."""
+        original_id = "TEST-ID-FLOW-ORIG"
+        renamed_id = "TEST-ID-FLOW-RENAMED"
+        final_id = "TEST-ID-FLOW-FINAL"
+
+        for pid in (original_id, renamed_id, final_id):
+            self._delete_product_by_product_id(pid)
+
+        product = self.create_test_product(original_id, "Product ID Flow Test", stock=6, order_qty=2)
+        if not product:
+            return False
+
+        def rename_product(db_id: int, new_product_id: str) -> bool:
+            response = requests.put(
+                f"{self.base_url}/products/{db_id}",
+                data={"product_id": new_product_id}
+            )
+            return response.status_code == 200
+
+        def lookup_product_id(pid: str):
+            response = requests.get(f"{self.base_url}/products?search={pid}")
+            if response.status_code != 200:
+                return None
+            payload = response.json()
+            return next((item for item in payload.get("items", []) if item.get("product_id") == pid), None)
+
+        # First rename: original -> renamed_id
+        if not rename_product(product["id"], renamed_id):
+            return False
+        renamed = self.get_product_by_id(product["id"])
+        if not renamed or renamed["product_id"] != renamed_id:
+            return False
+        if lookup_product_id(original_id):
+            return False
+
+        # Second rename: renamed_id -> final_id
+        if not rename_product(product["id"], final_id):
+            return False
+        final = self.get_product_by_id(product["id"])
+        if not final or final["product_id"] != final_id:
+            return False
+
+        if lookup_product_id(renamed_id):
+            return False
+        final_lookup = lookup_product_id(final_id)
+        if not final_lookup or final_lookup["id"] != product["id"]:
+            return False
+
+        self.created_product_ids.update({original_id, renamed_id, final_id})
+        return True
     
     def test_inline_order_qty_update(self):
         """TC-LIST-01: Test inline order quantity update"""
@@ -581,6 +690,8 @@ class TestRunner:
                 ("Global Reset", self.test_reset_all),
                 ("Search Functionality", self.test_search),
                 ("Product Detail Update", self.test_product_detail_update),
+                ("Product ID Edit Safety", self.test_product_id_edit_conflicts),
+                ("Product ID Update Flow", self.test_product_id_update_flow),
                 ("Inline Order Qty Update", self.test_inline_order_qty_update),
                  ("Inline Stock Update", self.test_inline_stock_update),
                  ("Stock Validation", self.test_stock_validation),

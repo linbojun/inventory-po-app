@@ -295,6 +295,7 @@ const styles = {
     border: '1px solid #ddd',
     borderRadius: '4px',
     backgroundColor: 'white',
+    color: '#555555',
     cursor: 'pointer',
     fontSize: '1rem',
   },

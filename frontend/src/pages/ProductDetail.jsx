@@ -13,6 +13,11 @@ function ProductDetail() {
   const [imagePreview, setImagePreview] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isEditingProductId, setIsEditingProductId] = useState(false);
+  const [productIdInput, setProductIdInput] = useState('');
+  const [productIdChange, setProductIdChange] = useState(null);
+  const [showProductIdConfirm, setShowProductIdConfirm] = useState(false);
+  const [productIdUpdating, setProductIdUpdating] = useState(false);
   const [formData, setFormData] = useState({
     stock: 0,
     order_qty: 0,
@@ -39,6 +44,7 @@ function ProductDetail() {
           brand: prod.brand || '',
           price: prod.price,
         });
+        setProductIdInput(prod.product_id || '');
       } catch (err) {
         setError(err.response?.data?.detail || err.message || 'Failed to fetch product');
       } finally {
@@ -163,6 +169,60 @@ function ProductDetail() {
     }
   };
 
+  const startProductIdEdit = () => {
+    if (!product) return;
+    setIsEditingProductId(true);
+    setProductIdInput(product.product_id || '');
+  };
+
+  const handleProductIdSaveAttempt = () => {
+    if (!product) return;
+    const trimmed = productIdInput.trim();
+    if (!trimmed) {
+      alert('Product ID cannot be blank');
+      return;
+    }
+    if (trimmed === product.product_id) {
+      alert('Product ID is unchanged');
+      return;
+    }
+    setProductIdChange({
+      previous: product.product_id,
+      next: trimmed,
+    });
+    setShowProductIdConfirm(true);
+  };
+
+  const handleCancelProductIdEdit = () => {
+    setIsEditingProductId(false);
+    setProductIdInput(product?.product_id || '');
+  };
+
+  const handleCancelProductIdConfirm = () => {
+    setShowProductIdConfirm(false);
+    setProductIdChange(null);
+  };
+
+  const handleConfirmProductIdUpdate = async () => {
+    if (!productIdChange?.next) {
+      return;
+    }
+    setProductIdUpdating(true);
+    try {
+      await productAPI.updateProduct(id, { product_id: productIdChange.next });
+      setProduct(prev => (prev ? { ...prev, product_id: productIdChange.next } : prev));
+      setProductIdInput(productIdChange.next);
+      setIsEditingProductId(false);
+      setShowProductIdConfirm(false);
+      setProductIdChange(null);
+      alert('Product ID updated successfully');
+    } catch (err) {
+      alert('Failed to update product ID: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setProductIdUpdating(false);
+    }
+  };
+
   if (loading) {
     return <div style={styles.loading}>Loading product...</div>;
   }
@@ -270,7 +330,51 @@ function ProductDetail() {
 
         <div style={styles.detailsSection}>
           <h1 style={styles.name}>{product.name}</h1>
-          <p style={styles.productId}>Product ID: {product.product_id}</p>
+          <div style={styles.productIdRow}>
+            <p style={styles.productId}>Product ID: {product.product_id}</p>
+            {!isEditingProductId && (
+              <button
+                type="button"
+                onClick={startProductIdEdit}
+                style={styles.productIdButton}
+              >
+                Update Product ID
+              </button>
+            )}
+          </div>
+          {isEditingProductId && (
+            <div style={styles.productIdEdit}>
+              <input
+                type="text"
+                value={productIdInput}
+                onChange={(e) => setProductIdInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleProductIdSaveAttempt();
+                  }
+                }}
+                style={styles.productIdInput}
+                placeholder="Enter new product ID"
+              />
+              <div style={styles.productIdEditButtons}>
+                <button
+                  type="button"
+                  onClick={handleProductIdSaveAttempt}
+                  style={styles.productIdReviewButton}
+                >
+                  Save New ID
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelProductIdEdit}
+                  style={styles.productIdEditCancelButton}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           {product.brand && <p style={styles.brand}>Brand: {product.brand}</p>}
 
           <div style={styles.form}>
@@ -370,6 +474,48 @@ function ProductDetail() {
           </div>
         </div>
       </div>
+      {showProductIdConfirm && productIdChange && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <h3 style={styles.modalTitle}>Confirm Product ID Update</h3>
+            <div style={styles.modalIdCompare}>
+              <div style={styles.modalIdCard}>
+                <p style={styles.modalIdLabel}>Previous ID</p>
+                <p style={styles.modalIdValue}>{productIdChange.previous}</p>
+              </div>
+              <span style={styles.modalArrow}>→</span>
+              <div style={styles.modalIdCard}>
+                <p style={styles.modalIdLabel}>New ID</p>
+                <p style={styles.modalIdValue}>{productIdChange.next}</p>
+              </div>
+            </div>
+            <p style={styles.modalHint}>
+              Updating this value changes references to this product everywhere in the app.
+            </p>
+            <div style={styles.modalButtons}>
+              <button
+                type="button"
+                onClick={handleConfirmProductIdUpdate}
+                disabled={productIdUpdating}
+                style={{
+                  ...styles.modalConfirmButton,
+                  ...(productIdUpdating ? { opacity: 0.7, cursor: 'not-allowed' } : {}),
+                }}
+              >
+                {productIdUpdating ? 'Updating...' : 'Confirm Update'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelProductIdConfirm}
+                disabled={productIdUpdating}
+                style={styles.modalCancelButton}
+              >
+                Go Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -508,6 +654,55 @@ const styles = {
     color: '#7f8c8d',
     marginBottom: '0.5rem',
   },
+  productIdRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    flexWrap: 'wrap',
+    marginBottom: '0.5rem',
+  },
+  productIdButton: {
+    padding: '0.35rem 0.8rem',
+    borderRadius: '4px',
+    border: '1px solid #2980b9',
+    backgroundColor: '#2980b9',
+    color: 'white',
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+  },
+  productIdEdit: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    marginBottom: '1rem',
+  },
+  productIdInput: {
+    padding: '0.6rem',
+    border: '1px solid #ddd',
+    borderRadius: '4px',
+    fontSize: '1rem',
+  },
+  productIdEditButtons: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  productIdReviewButton: {
+    padding: '0.5rem 1rem',
+    border: 'none',
+    borderRadius: '4px',
+    backgroundColor: '#27ae60',
+    color: 'white',
+    cursor: 'pointer',
+    fontWeight: '600',
+  },
+  productIdEditCancelButton: {
+    padding: '0.5rem 1rem',
+    borderRadius: '4px',
+    border: '1px solid #ddd',
+    backgroundColor: 'white',
+    color: '#555555',
+    cursor: 'pointer',
+  },
   brand: {
     fontSize: '1rem',
     color: '#7f8c8d',
@@ -587,6 +782,100 @@ const styles = {
     padding: '3rem',
     fontSize: '1.2rem',
     color: '#e74c3c',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '1rem',
+    zIndex: 1000,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: '420px',
+    backgroundColor: 'white',
+    borderRadius: '8px',
+    padding: '1.5rem',
+    boxShadow: '0 15px 35px rgba(0,0,0,0.2)',
+  },
+  modalTitle: {
+    margin: 0,
+    marginBottom: '0.75rem',
+    fontSize: '1.25rem',
+    color: '#2c3e50',
+  },
+  modalText: {
+    margin: 0,
+    marginBottom: '0.5rem',
+    fontSize: '1rem',
+    color: '#34495e',
+  },
+  modalHint: {
+    margin: 0,
+    marginBottom: '1rem',
+    fontSize: '0.9rem',
+    color: '#7f8c8d',
+  },
+  modalIdCompare: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    marginBottom: '1rem',
+  },
+  modalIdCard: {
+    flex: 1,
+    padding: '0.75rem',
+    borderRadius: '6px',
+    border: '1px solid #ecf0f1',
+    backgroundColor: '#fefefe',
+  },
+  modalIdLabel: {
+    margin: 0,
+    fontSize: '0.75rem',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: '#7f8c8d',
+  },
+  modalIdValue: {
+    margin: '0.25rem 0 0',
+    fontSize: '1.1rem',
+    fontWeight: '600',
+    color: '#2c3e50',
+    wordBreak: 'break-word',
+  },
+  modalArrow: {
+    fontSize: '1.4rem',
+    color: '#95a5a6',
+    fontWeight: '600',
+  },
+  modalButtons: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '0.75rem',
+  },
+  modalConfirmButton: {
+    padding: '0.6rem 1.2rem',
+    border: 'none',
+    borderRadius: '4px',
+    backgroundColor: '#27ae60',
+    color: 'white',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  modalCancelButton: {
+    padding: '0.6rem 1.2rem',
+    borderRadius: '4px',
+    border: '1px solid #ddd',
+    backgroundColor: 'white',
+    color: '#555555',
+    cursor: 'pointer',
   },
 };
 

@@ -17,6 +17,7 @@ class ProductCreate(ProductBase):
     pass
 
 class ProductUpdate(BaseModel):
+    product_id: Optional[str] = None
     name: Optional[str] = None
     brand: Optional[str] = None
     price: Optional[Decimal] = Field(default=None, ge=0)

@@ -2,6 +2,25 @@
 
 All notable changes to the Inventory PO Web App project will be documented in this file.
 
+## [1.2.24] - 2025-12-23
+
+### Added - Confirmed Product ID editing
+
+**Why**: Product IDs occasionally need to be corrected after an item is created, but the UI didn’t offer a safe way to make that change and the API rejected updates silently. Operators resorted to re-importing or deleting/recreating products, which is slow and error-prone.
+
+**What**:
+- Added an "Update Product ID" control on the Product Detail page. Editing opens a guarded form and triggers a confirmation modal that shows the previous vs. new ID so users can verify the change before committing.
+- Backend `PUT /api/products/{id}` now accepts an optional `product_id` form field, validates uniqueness, and keeps existing image deduplication behavior intact.
+- The front-end API client includes `product_id` when provided, and the regression suite (`test_core_functionality.py::test_product_detail_update`) now asserts that renaming a product ID works.
+- README Usage Guide documents the new confirmed edit workflow so the behavior stays discoverable.
+- The confirmation modal now lays out the previous and new IDs side-by-side, the action button reads “Save New ID,” and pressing Enter inside the field launches the confirmation for quicker keyboard workflows.
+- Added a dedicated `TC-DETAIL-03 (test_product_id_update_flow)` regression that renames the same product twice to ensure no stale product IDs linger after consecutive edits.
+
+**Benefits**:
+- Operators can correct typos without recreating products.
+- Double-confirmation reduces the risk of accidental ID collisions.
+- Automated tests cover the flow to prevent regressions.
+
 ## [1.2.23] - 2025-12-23
 
 ### Improved - Position-based PDF product ID extraction

@@ -338,6 +338,7 @@ async def create_product(
 async def update_product(
     id: int,
     request: Request,
+    product_id_form: Optional[str] = Form(None, alias="product_id"),
     name: Optional[str] = Form(None),
     brand: Optional[str] = Form(None),
     price: Optional[float] = Form(None),
@@ -355,6 +356,24 @@ async def update_product(
     if not db_product:
         raise HTTPException(status_code=404, detail="Product not found")
     
+    # Update product_id when provided
+    if product_id_form is not None:
+        new_product_id = product_id_form.strip()
+        if not new_product_id:
+            raise HTTPException(status_code=400, detail="Product ID cannot be blank")
+        if new_product_id != db_product.product_id:
+            conflict = (
+                db.query(Product)
+                .filter(Product.product_id == new_product_id, Product.id != id)
+                .first()
+            )
+            if conflict:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Product with product_id '{new_product_id}' already exists",
+                )
+            db_product.product_id = new_product_id
+
     # Update text fields
     if name is not None:
         db_product.name = name

@@ -72,6 +72,7 @@ export const productAPI = {
   updateProduct: (id, data, imageFile = null) => {
     const formData = new FormData();
     const { force_new_image, ...fields } = data;
+    if (fields.product_id !== undefined) formData.append('product_id', fields.product_id);
     if (fields.name !== undefined) formData.append('name', fields.name);
     if (fields.brand !== undefined) formData.append('brand', fields.brand);
     if (fields.price !== undefined) formData.append('price', fields.price);
