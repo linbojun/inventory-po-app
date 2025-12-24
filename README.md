@@ -4,407 +4,214 @@ A personal web application for managing product inventory and purchase order (PO
 
 ## Overview
 
-This application allows you to:
-- View and search all products in a scrollable list (mobile + desktop)
-- Update stock and order quantities quickly during daily work
-- View a "shopping cart" style view showing only products with `order_qty > 0`
-- Import product data from Excel / PDF / manual input
-- Reset all stock and order quantities with one click to start a new purchasing cycle
+This application streamlines the process of tracking inventory and creating purchase orders. It features a responsive mobile-friendly interface, robust import capabilities for PDF/Excel invoices, and smart image management to reduce storage usage.
+
+### Key Features
+
+*   **Product Management**: View, search, and sort products. Update stock levels and order quantities inline.
+*   **Shopping Cart**: Dedicated view for products with active order quantities (`order_qty > 0`).
+*   **Smart Import**: 
+    *   Parse Excel and PDF invoices (specifically optimized for Chinatown Supermarket layouts).
+    *   Automatic conflict detection (skips existing product IDs).
+    *   Position-based data extraction for reliable parsing of various ID formats.
+*   **Image Optimization**: 
+    *   Automatic deduplication using Perceptual Hashing (pHash) and ORB feature matching.
+    *   Reuses existing image files when uploads are ≥95% similar with sufficient feature matches.
+*   **Global Reset**: One-click reset of all stock and order quantities for new cycles.
+
+---
 
 ## Technology Stack
 
-- **Frontend**: React (Vite) with React Router
-- **Backend**: Python FastAPI
-- **Database**: PostgreSQL (or SQLite for local development)
-- **API**: RESTful JSON API
-- **Image Processing**: Pillow, imagehash, OpenCV (for perceptual hashing and ORB feature matching)
+### Frontend
+*   **Framework**: React (Vite 7.x)
+*   **Routing**: React Router DOM
+*   **HTTP Client**: Axios
 
-### Key Dependencies
+### Backend
+*   **Framework**: Python FastAPI
+*   **ORM**: SQLAlchemy
+*   **Database**: PostgreSQL (Production) / SQLite (Local Dev)
+*   **Image Processing**: Pillow, ImageHash, OpenCV (ORB)
+*   **Storage**: Local Filesystem (Dev) / Cloudflare R2 (Production)
+*   **File Parsing**: PyPDF2 (PDF), OpenPyxl (Excel)
 
-**Backend** (`backend/requirements.txt`):
-- FastAPI 0.104.1 - Web framework
-- SQLAlchemy 2.0.23 - ORM
-- Pydantic 2.5.0 - Data validation
-- Pillow 10.3.0 - Image processing
-- imagehash 4.3.1 - Perceptual hashing
-- opencv-python 4.10.0 - ORB feature matching
-- boto3 1.40.x - S3-compatible client (Cloudflare R2 image storage)
-- openpyxl 3.1.2 - Excel file parsing
-- PyPDF2 3.0.1 - PDF file parsing
-- psycopg2-binary 2.9.9 - PostgreSQL driver
-
-**Frontend** (`frontend/package.json`):
-- React with Vite 7.x
-- React Router DOM
-- Axios - HTTP client
+---
 
 ## Project Structure
 
-```
+```text
 Inventory_PO_Web_App/
 ├── backend/
 │   ├── app/
-│   │   ├── __init__.py
-│   │   ├── database.py          # Database configuration
-│   │   ├── models.py            # SQLAlchemy models
-│   │   ├── schemas.py           # Pydantic schemas
 │   │   ├── main.py              # FastAPI application
-│   │   ├── importers.py         # Excel/PDF import logic
-│   │   └── image_similarity.py  # Image deduplication (pHash + ORB)
-│   │   └── storage.py           # Image storage (local dev or Cloudflare R2)
-│   ├── static/images/           # Uploaded product images (local dev)
-│   ├── uploads/                 # Temporary import files
-│   ├── requirements.txt
-│   ├── .env.example
-│   └── run.py
+│   │   ├── models.py            # SQLAlchemy models
+│   │   ├── importers.py         # Excel/PDF parsing logic
+│   │   ├── image_similarity.py  # Deduplication logic (pHash + ORB)
+│   │   └── storage.py           # S3/R2 storage handler
+│   ├── static/images/           # Local image storage
+│   ├── uploads/                 # Temp storage for imports
+│   └── run.py                   # Server entry point
 ├── frontend/
 │   ├── src/
-│   │   ├── api.js               # API client
-│   │   ├── App.jsx              # Main application with routing
-│   │   ├── App.css              # Global styles
-│   │   ├── components/
-│   │   │   ├── NavBar.jsx       # Navigation bar
-│   │   │   └── ProductCard.jsx  # Product card component
-│   │   ├── pages/
-│   │   │   ├── ProductList.jsx  # Main product listing
-│   │   │   ├── ProductDetail.jsx# Product detail/edit page
-│   │   │   ├── Cart.jsx         # Shopping cart view
-│   │   │   └── Import.jsx       # Excel/PDF/manual import
-│   │   └── contexts/
-│   │       └── CartContext.jsx  # Cart state management
-│   ├── package.json
+│   │   ├── components/          # React components
+│   │   ├── pages/               # Page views (List, Detail, Cart, Import)
+│   │   └── contexts/            # State management
 │   └── vite.config.js
-├── sample_data/
-│   └── chinatown_invoice_sample.pdf  # Sample PDF for testing
-├── test_core_functionality.py
-├── README.md
-└── CHANGELOG.md
+├── sample_data/                 # Test invoices/PDFs
+└── test_core_functionality.py   # Integration tests
 ```
 
-## Setup Instructions
+---
+
+## Setup & Installation
 
 ### Prerequisites
+*   **Python**: 3.8+
+*   **Node.js**: 20.19+ or 22.12+ (Required by Vite 7)
 
-- Python 3.8+
-- Node.js 18+ (for frontend)
-- PostgreSQL (optional, SQLite can be used for local development)
+### 1. Backend Setup
 
-### Backend Setup
+Navigate to the backend directory and set up the Python environment.
 
-1. Navigate to the backend directory:
 ```bash
 cd backend
-```
-
-2. Create a virtual environment (recommended):
-```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Set up environment variables:
+**Configuration (.env):**
+Copy the example environment file:
 ```bash
 cp .env.example .env
-# Edit .env with your database URL and other settings
 ```
+*   **Default (Dev)**: Uses SQLite (`inventory_po.db`) and local image storage.
+*   **Production**: Set `DATABASE_URL` (PostgreSQL) and `R2_*` variables.
 
-For SQLite (default):
-```
-DATABASE_URL=sqlite:///./inventory_po.db
-```
-
-For PostgreSQL:
-```
-DATABASE_URL=postgresql://user:password@localhost:5432/inventory_po_db
-```
-
-Optional (defaults shown):
-```
-# Images that are >=95% similar will reuse the same file on disk
-IMAGE_SIMILARITY_THRESHOLD=0.95
-# ORB matcher ratio threshold + minimum good matches for reuse
-FEATURE_MATCH_RATIO=0.75
-FEATURE_MIN_MATCHES=15
-```
-
-#### CORS / Hosting configuration
-
-The API automatically whitelists `http://localhost:3000`, `http://localhost:5173`, and `https://inventory-po-app.vercel.app`. When deploying to Render (or another host), set the following env vars if you need to customize the allowlist:
-
-```
-# Replace the entire allowlist (comma separated). Leave empty to keep defaults.
-CORS_ALLOW_ORIGINS=https://inventory-po-app.vercel.app,https://your-custom-domain.com
-
-# Append extra origins without losing the defaults.
-CORS_EXTRA_ORIGINS=https://staging.your-domain.com
-
-# Keep *.vercel.app previews (and localhost with random ports) allowed via regex.
-# Set to false only if you want to block preview deployments entirely.
-ENABLE_VERCEL_PREVIEW_CORS=true
-```
-
-5. Run the backend server:
+**Run the Server:**
 ```bash
-# Local development (SQLite + local /static images)
+# Developer Mode (SQLite + Local Images)
 python run.py --dev
 
-# Production-style run (PostgreSQL + R2, requires env vars)
+# Production Mode (PostgreSQL + R2)
 python run.py
 ```
+The API will be available at `http://localhost:8000`.
 
-The API will be available at `http://localhost:8000`
+### 2. Frontend Setup
 
-#### Backend Modes
+Open a new terminal and navigate to the frontend directory.
 
-- `python run.py --dev` – Forces SQLite via `SQLITE_DATABASE_URL` (defaults to `sqlite:///./inventory_po.db`) and stores uploaded images under the configured `IMAGE_DIR` (default `./static/images`). R2 credentials are ignored so everything stays local.
-- `python run.py` – Runs in production mode. Whatever `DATABASE_URL` and `R2_*` variables are present will be used (PostgreSQL + R2 by default).
-
-### Frontend Setup
-
-**Prerequisites**: Node.js 20.19+ or 22.12+ is required (Vite 7.x requirement)
-
-1. Ensure you have Node.js 20+ installed:
-```bash
-node --version  # Should show v20.19+ or v22.12+
-```
-
-If you need to install/upgrade Node.js:
-```bash
-# Install Node.js 20 via Homebrew
-brew install node@20
-
-# Add to PATH (add to ~/.zshrc for persistence)
-export PATH="/usr/local/opt/brew/opt/node@20/bin:$PATH"
-```
-
-2. Navigate to the frontend directory:
 ```bash
 cd frontend
-```
-
-3. Install dependencies:
-```bash
 npm install
-```
-
-4. Start the development server:
-```bash
 npm run dev
 ```
+The application will run at `http://localhost:5173`.
 
-The frontend will be available at `http://localhost:5173` (or another port if 5173 is busy)
+---
 
-## Usage
+## Configuration Details
 
-### Core Features
+### Environment Variables
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | DB Connection string | `sqlite:///./inventory_po.db` |
+| `IMAGE_DIR` | Local image storage path | `./static/images` |
+| `CORS_ALLOW_ORIGINS`| Allowed CORS origins | `http://localhost:3000`, `*.vercel.app` |
 
-1. **Product List**: Browse all products with search and sorting controls, adjust both stock levels and order quantities inline, and see changes propagate instantly across the list and cart views.
-2. **Product Detail**: View, edit, and delete full product information. Stock, order quantity, and price inputs now ignore mouse-wheel changes to prevent accidental adjustments during scrolling, deletions are gated behind a confirmation prompt, and clearing the Remarks field now truly removes the stored note.
-3. **Cart View**: See all products with `order_qty > 0`
-4. **Import**: Upload Excel or PDF files to import products. Manual entry validates product IDs up front with live feedback, blocks submission when duplicates are detected, and disables scroll-wheel changes on numeric fields. PDF import now understands the Chinatown Supermarket invoice layout, maps Item Code → Product ID, Description → Name (including case-pack notations), Price Each → Price automatically, and reports any rows that were skipped because those products already exist in the database.
-5. **Reset**: Clear all stock and order quantities to start a new cycle
-6. **Image Upload Deduplication**: Product photos are analyzed with perceptual hashes *and* ORB feature matching. Uploads that are ≥95% similar **and** produce at least **225** high-quality ORB matches (roughly 90 % of the overlapping keypoints we see on near-identical catalog shots) reuse the original file so storage stays lean while still linking the new product to the shared photo. When you know an upload is different (e.g., fixing a mismatched catalog photo), both the Product Detail page and the Manual Input form now include an **“Always save this uploaded image”** toggle that bypasses similarity matching for that submission so you are never stuck with a stale image. These thresholds can be tuned via environment variables (see *Image Similarity Settings* below).
+### Image Similarity Settings
+Tuning these variables in `.env` controls how aggressive the image deduplication is:
+
+*   `IMAGE_SIMILARITY_THRESHOLD` (Default: **0.95**): Minimum pHash similarity.
+*   `FEATURE_MATCH_RATIO` (Default: **0.55**): Lowe’s ratio for ORB keypoints (lower is stricter).
+*   `FEATURE_MIN_MATCHES` (Default: **225**): Minimum "good" matches required to consider images identical.
+
+---
+
+## Usage Guide
 
 ### PDF Import Format
+The system is optimized for **Chinatown Supermarket** invoice layouts:
+*   **Fields Parsed**: Item Code (`product_id`), Description (`name`), Price Each (`price`).
+*   **Logic**:
+    *   Uses a **position-based algorithm** to reliably extract IDs relative to the "Amount" column.
+    *   Supports various ID formats: 6-digit numeric, alphanumeric (`GT-099`), letter suffixes (`800460S`), etc.
+    *   Merges multi-line descriptions automatically.
+    *   **Conflict Handling**: Rows with existing Product IDs are skipped (not overwritten) and reported in the UI.
 
-- Upload invoices that follow the `Chinatown Supermarket UT inv ####.pdf` layout.
-- The importer reads the `Item Code`, `Description`, and `Price Each` columns and stores them as `product_id`, `name`, and `price` respectively (stock/order quantities remain `0`).
-- Multi-line descriptions (including bilingual copy and case-pack callouts) are merged automatically and duplicate item codes keep the last occurrence inside the PDF.
-- If the PDF references a product ID that already lives in the database, that row is skipped instead of overwriting the existing record and the duplicate list is returned to the UI so users know what stayed untouched.
-- The Import page now renders the skipped list with the existing name, incoming name (when different), and the server-supplied reason so you can reconcile conflicts without digging into logs.
-- A reference invoice used by the automated tests lives at `sample_data/chinatown_invoice_sample.pdf`; you can reuse it to validate the workflow manually or extend it with your own pricing.
-- **Reliability update (2025-12-17):** PDF rows are now parsed even when the `Item Code` column begins at character index `0`, which previously caused every line to be skipped. The core regression suite exercises this exact invoice so future changes can’t silently break the import path again.
-- **Alphanumeric product ID support (2025-12-20):** The PDF importer now correctly recognizes product IDs that contain letters, not just pure 6-digit numeric codes. Supported formats include letter-dash-digit patterns (`GT-099`, `JE-3345`), letter-digit concatenations (`JK51029`, `JKK283`, `JL8166`), and letter-only codes (`HOOK`).
+### Image Deduplication
+When uploading a product image:
+1.  The server calculates a perceptual hash (pHash) and extracts ORB features.
+2.  It compares this against all existing images.
+3.  If a match is found (≥95% similarity AND ≥225 feature matches), the **existing file path** is reused.
+4.  **Override**: You can toggle "Always save this uploaded image" in the UI to bypass this check if necessary.
 
-### API Endpoints
+---
 
-- `GET /api/products` - List products (with search, sort, pagination)
-- `GET /api/products/{id}` - Get product details
-- `DELETE /api/products/{id}` - Permanently delete a product (and its image)
-- `POST /api/products` - Create new product
-- `PUT /api/products/{id}` - Update product
-- `PATCH /api/products/{id}/order-qty` - Quick update order quantity
-- `PATCH /api/products/{id}/stock` - Quick update stock
-- `GET /api/cart` - Get cart items (products with order_qty > 0)
-- `POST /api/products/reset` - Reset all products
-- `POST /api/import/excel` - Import from Excel
-- `POST /api/import/pdf` - Import from PDF
+## API Reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/products` | List products (search/sort/paginate) |
+| `GET` | `/api/products/{id}` | Get product details |
+| `POST` | `/api/products` | Create product |
+| `PUT` | `/api/products/{id}` | Update product |
+| `PATCH` | `/api/products/{id}/[stock\|order-qty]` | Quick update stock/order |
+| `GET` | `/api/cart` | Get items with `order_qty > 0` |
+| `POST` | `/api/import/[excel\|pdf]` | Import data files |
+| `POST` | `/api/products/reset` | Reset all stock/orders to 0 |
+
+---
 
 ## Testing
 
-Install the test dependencies and run the core functionality test suite:
+The project includes a comprehensive test suite.
 
+**1. Core Functionality Test**
+Tests the full flow: API, DB, resets, and PDF import logic.
 ```bash
-# Install dependencies (pytest and requests are in backend/requirements.txt)
+# Ensure backend is running, then:
 cd backend
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Make sure backend is running first (in a separate terminal)
-python run.py
-
-# Then run the tests (from backend directory)
 python ../test_core_functionality.py
-
-# Or using pytest:
-pytest ../test_core_functionality.py
-
-# Need a different API port? Point the harness at it:
-# TEST_API_BASE_URL=http://localhost:8001/api python ../test_core_functionality.py
 ```
 
-The test harness seeds its own `TEST-*` products and automatically deletes them afterward, keeping your primary inventory data untouched.
-
-This will test:
-- Global reset functionality
-- Search functionality
-- Product detail updates
-- Inline order quantity and stock updates
-- Validation on both order_qty and stock values
-- Cart view and synchronization
-- PDF invoice import (Chinatown Supermarket format, including duplicate-skipping)
-
-Image similarity regression scenarios now live exclusively in the lightweight CLI inside `backend/tests/image_similarity_cli.py`. Run that helper to evaluate deduplication behavior without exercising the full HTTP harness.
-
-### One-off image similarity checks
-
-Need to verify whether two images will be treated as duplicates without going through the full API flow? Use the standalone CLI harness that ships with the backend:
-
+**2. PDF Extraction Test**
+Verifies the position-based parser against various ID formats.
 ```bash
-cd /path/to/Inventory_PO_Web_App
-source backend/venv/bin/activate
-python backend/tests/image_similarity_cli.py \
-  backend/static/images/test_01_535f18cb.png \
-  backend/static/images/800000_23ae6915.png
+cd backend
+python tests/test_pdf_product_ids.py
 ```
 
-The script prints:
+**3. Image Similarity CLI**
+Test deduplication logic on specific files without running the server.
+```bash
+python backend/tests/image_similarity_cli.py path/to/image1.png path/to/image2.png
+```
 
-- The pHash similarity score versus `IMAGE_SIMILARITY_THRESHOLD`
-- ORB descriptor counts, total “good” matches, and the configured `FEATURE_MATCH_RATIO`/`FEATURE_MIN_MATCHES`
-- A final PASS/FAIL verdict that mirrors the backend’s deduplication rules (`image_similarity_threshold` OR `feature_min_matches`).
+---
 
-Paths can be absolute, relative, or `/static/<filename>` (handy if you want to compare against an already-uploaded product image living under `settings.image_dir`). Override any of the thresholds with `--hash-threshold`, `--feature-ratio`, or `--min-feature-matches` flags to experiment without changing `.env`.
+## Deployment
 
-## Data Model
+### Production Stack
+*   **Frontend**: Vercel (Static)
+*   **Backend**: Render (Web Service)
+*   **Database**: Neon (PostgreSQL)
+*   **Images**: Cloudflare R2 (Object Storage)
 
-### Products Table
+### Deployment Config
+*   **Render**: Set `DATABASE_URL` and `CORS_ALLOW_ORIGINS`.
+*   **Vercel**: Set `VITE_API_URL` to your Render backend URL.
+*   **R2**: Required env vars: `R2_ENDPOINT_URL`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_BASE_URL`.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | Integer (PK) | Auto-increment primary key |
-| `product_id` | String | Unique product identifier (indexed) |
-| `name` | String | Product name (indexed) |
-| `brand` | String | Brand name (indexed, optional) |
-| `price` | Numeric(10,2) | Unit price (default: 0) |
-| `stock` | Integer | Current stock quantity (default: 0) |
-| `order_qty` | Integer | Order quantity (default: 0, indexed) |
-| `image_url` | String | Product image URL (optional). Either `/static/...` (local dev) or an absolute URL (e.g. Cloudflare R2 `https://pub-...r2.dev/...`) |
-| `image_hash` | String | Perceptual hash for deduplication (optional) |
-| `remarks` | Text | Additional notes (optional) |
-| `created_at` | Timestamp | Record creation time |
-| `updated_at` | Timestamp | Last update time |
-
-**Indexes**: `product_id` (unique), `(brand, name)` for search optimization, `order_qty` for cart queries.
-
-## Development
-
-### Database Migrations
-
-The application uses SQLAlchemy with automatic table creation. For production, consider using Alembic for migrations (already included in requirements.txt).
-
-### Adding New Features
-
-1. Backend: Add new endpoints in `backend/app/main.py`
-2. Frontend: Add new pages in `frontend/src/pages/` and update routing in `App.jsx`
-
-## Production Deployment (Beginner-Friendly, Free Tiers)
-
-This app is designed to be deployable with:
-- **Frontend**: Vercel (static hosting)
-- **Backend**: Render (FastAPI)
-- **Database**: Neon (PostgreSQL)
-- **Images**: Cloudflare R2 (persistent object storage)
-
-### Current Production Instances
-
-The live environment uses the free-tier providers listed above:
-
-- **Frontend (Vercel)** – `https://inventory-po-app.vercel.app/`
-- **Backend (Render)** – `https://inventory-po-app.onrender.com`
-- **Database (Neon.tech PostgreSQL)** – provisioned via Neon; the `DATABASE_URL` Render env var references the current instance.
-- **Image Storage (Cloudflare R2)** – managed through the Cloudflare dashboard at `https://dash.cloudflare.com/6b02e0f26ce769dd116b1e095c1266f0/r2/default/buckets/inventory-images`
-
-### Production Environment Variables
-
-**Frontend (Vercel)**:
-- `VITE_API_URL=https://<your-backend-domain>` (recommended)  
-  The frontend will automatically append `/api` if you forget it.
-- (Also OK) `VITE_API_URL=https://<your-backend-domain>/api`
-
-**Backend (Render)**:
-- `DATABASE_URL=postgresql://...` (Neon connection string)
-- `CORS_ALLOW_ORIGINS=https://<your-frontend-domain>` (comma-separated list if needed)
-  - If you don't set it, the backend allows `localhost` and `*.vercel.app` by default.
-  - Optional advanced: `CORS_ALLOW_ORIGIN_REGEX=...` for a custom regex allowlist.
-
-If using **Cloudflare R2** for images:
-- `R2_ENDPOINT_URL=https://<your-account-id>.r2.cloudflarestorage.com`
-- `R2_BUCKET_NAME=inventory-images`
-- `R2_ACCESS_KEY_ID=...`
-- `R2_SECRET_ACCESS_KEY=...`
-- `R2_PUBLIC_BASE_URL=https://pub-....r2.dev`
-
-### Image Similarity Settings
-
-Fine-tune deduplication behavior by adding the following to `.env` (defaults in parentheses):
-
-- `IMAGE_SIMILARITY_THRESHOLD` (default **0.95**) – minimum perceptual-hash similarity (1.0 means identical).
-- `FEATURE_MATCH_RATIO` (default **0.55**) – Lowe’s ratio threshold when evaluating ORB keypoints (lower = stricter).
-- `FEATURE_MIN_MATCHES` (default **225**) – minimum number of “good” ORB matches required before two uploads are treated as the same photo. With ORB extracting 500 descriptors per image, 225 roughly equals a 90 % structural overlap, so distinct packaging artwork will no longer collapse into a single shared image accidentally.
+---
 
 ## Troubleshooting
 
-### Backend Issues
-
-- **SQLite Compatibility Error**: If you see an error like `Symbol not found: _sqlite3_enable_load_extension`, this is a known issue with Python 3.8 from Homebrew on macOS. Solution:
-  - Recreate your virtual environment using system Python (which has proper SQLite support):
-    ```bash
-    cd backend
-    rm -rf venv
-    /usr/bin/python3 -m venv venv
-    source venv/bin/activate
-    pip install -r requirements.txt
-    ```
-  
-- **Port already in use error**: If you see `[Errno 48] Address already in use`, another instance of the server is running. Fix it:
-  ```bash
-  # Find and kill processes using port 8000
-  lsof -ti:8000 | xargs kill -9
-  # Or use a different port by modifying backend/run.py
-  ```
-  
-- **Database connection errors**: Check your `DATABASE_URL` in `.env`. SQLite is the default and should work with system Python.
-- **Import errors**: Ensure file formats match expected templates
-- **CORS errors**: Check CORS settings in `backend/app/main.py`
-- **Pydantic `Extra inputs are not permitted` for `r2_*` env vars**: The settings loader now ignores unknown environment entries, so you can safely add the five `R2_*` values to `.env`. If you still see this error, ensure you're running version `1.2.13` or later (or pull the latest `backend/app/database.py`).
-
-### Frontend Issues
-
-- **Node.js version errors**: If you see "Vite requires Node.js version 20.19+ or 22.12+", upgrade Node.js:
-  ```bash
-  brew install node@20
-  export PATH="/usr/local/opt/brew/opt/node@20/bin:$PATH"
-  # Add the export line to ~/.zshrc to make it permanent
-  ```
-  
-- **API connection errors**: Ensure backend is running on `http://localhost:8000`
-- **Build errors**: Try deleting `node_modules` and reinstalling dependencies
+*   **SQLite Extensions**: If you encounter `Symbol not found: _sqlite3_enable_load_extension` on macOS, ensure you are using the system Python or a Homebrew-installed Python that supports SQLite extensions.
+*   **Node Version**: "Vite requires Node.js..." -> Upgrade to Node 20+.
+*   **Port In Use**: `[Errno 48] Address already in use` -> Kill the process on port 8000 or use a different port.
 
 ## License
 
