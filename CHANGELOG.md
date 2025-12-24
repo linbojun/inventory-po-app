@@ -2,6 +2,45 @@
 
 All notable changes to the Inventory PO Web App project will be documented in this file.
 
+## [1.2.23] - 2025-12-23
+
+### Improved - Position-based PDF product ID extraction
+
+**Why**: The previous regex-based approach for extracting product IDs from Chinatown Supermarket invoices was complex and fragile. It required hardcoding patterns for different product ID formats (numeric, alphanumeric, letter-dash-digit, etc.), and adding new formats required modifying the regex logic. This made the code difficult to maintain and prone to missing edge cases.
+
+**What**:
+- Replaced the complex regex-based product ID extraction (`_is_probable_product_id()`, `_tokenize_product_id_text()`, `_extract_product_id_from_text()`) with a simpler **position-based approach**.
+- The new approach leverages the consistent table structure of ES HOUSEWARE invoices: after the Amount column (the last decimal number on a line), everything else follows the pattern `[product_id] [barcode]`.
+- Added `_extract_product_id_and_barcode_from_tail()` function that:
+  - Splits the tail text (after the amount) by whitespace
+  - First token = product ID
+  - Last token (if 10+ digits) = barcode
+  - This handles all product ID formats naturally without regex
+
+**Supported product ID formats**:
+| Format | Examples |
+|--------|----------|
+| 6-digit numeric | `800026`, `801012`, `823001` |
+| Numeric with letter suffix | `800460S`, `801401P`, `801428P` |
+| Letter-dash-digit | `GT-099`, `JE-3345` |
+| Alphanumeric (no dash) | `JK51029`, `JL8166`, `JKK283` |
+| Pure letter codes | `HOOK` |
+
+**Testing**:
+- Added comprehensive test suite at `backend/tests/test_pdf_product_ids.py` that validates:
+  - Unit tests for core extraction functions
+  - Integration tests against all sample PDFs in `sample_data/`
+  - Specific tests for all alphanumeric product ID formats
+- Added additional sample PDFs to `sample_data/` for testing:
+  - `Chinatown Supermarket UT inv 35464.pdf` (400+ products)
+  - `Chinatown Supermarket UT inv 36889.pdf` (includes alphanumeric IDs)
+
+**Benefits**:
+- Simpler, more maintainable code
+- No regex patterns to update when new product ID formats appear
+- More robust: uses structural position rather than guessing patterns
+- Future-proof: new product ID formats work automatically
+
 ## [1.2.22] - 2025-12-20
 
 ### Fixed - PDF import now correctly recognizes alphanumeric product IDs

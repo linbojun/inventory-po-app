@@ -153,6 +153,9 @@ PDF_FOOTER_MARKERS = [
 
 PDF_CURRENCY_PATTERN = re.compile(r"(-?\$?\s*\(?\d[\d,]*\.\d{2}\)?)")
 
+# Minimum length for barcodes (UPC/EAN are typically 12-13 digits)
+MIN_BARCODE_LENGTH = 10
+
 
 def parse_pdf(file_path: str) -> Tuple[List[ProductCreate], List[Dict]]:
     """
@@ -421,103 +424,135 @@ def _is_footer_line(normalized_line: str) -> bool:
     )
 
 
+def _is_barcode(token: str) -> bool:
+    """
+    Check if a token looks like a barcode (UPC/EAN).
+    Barcodes are typically 10-13 digit numbers.
+    """
+    return token.isdigit() and len(token) >= MIN_BARCODE_LENGTH
+
+
+def _extract_product_id_and_barcode_from_tail(tail: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Position-based extraction of product ID and barcode from the tail of a summary line.
+    
+    The tail is everything after the last decimal number (Amount column).
+    Pattern: [product_id] [barcode] or just [product_id]
+    
+    Examples:
+        '800026 845970000267' -> ('800026', '845970000267')
+        '800460S' -> ('800460S', None)
+        'GT-099 859176000518' -> ('GT-099', '859176000518')
+        'HOOK' -> ('HOOK', None)
+        'JK51029 4945569510293' -> ('JK51029', '4945569510293')
+    
+    Returns:
+        (product_id, barcode) tuple
+    """
+    if not tail:
+        return None, None
+    
+    # Split on whitespace to get tokens
+    tokens = tail.split()
+    
+    if len(tokens) == 0:
+        return None, None
+    
+    if len(tokens) == 1:
+        # Single token = product ID, no barcode
+        return tokens[0], None
+    
+    # Two or more tokens
+    # Rule: If the last token is a long number (10+ digits), it's a barcode
+    # The first token is the product ID
+    product_id = tokens[0]
+    potential_barcode = tokens[-1]
+    
+    if _is_barcode(potential_barcode):
+        barcode = potential_barcode
+    else:
+        barcode = None
+    
+    return product_id, barcode
+
+
 def _looks_like_chinatown_summary_line(line: str) -> bool:
     """
     Check if a line looks like a Chinatown invoice summary line.
-    Summary lines contain price/amount values and typically have either:
-    - A long digit sequence (barcode or numeric product ID)
-    - An alphanumeric product ID pattern (like GT-099, JK51029, HOOK)
+    
+    Summary lines have at least 2 decimal numbers (price + amount) and
+    have content after the last decimal that looks like a product ID.
+    
+    Position-based approach: After the Amount value, there's always
+    a product ID (and optionally a barcode).
     """
-    has_decimal = bool(PDF_CURRENCY_PATTERN.search(line))
-    if not has_decimal:
+    decimal_matches = list(PDF_CURRENCY_PATTERN.finditer(line))
+    if len(decimal_matches) < 2:
+        # Need at least price + amount
         return False
     
-    # Check for long digit sequences (barcodes or numeric product IDs)
-    has_long_digits = bool(re.search(r"\d{5,}", line))
+    # Get tail after the last decimal
+    last_match = decimal_matches[-1]
+    tail = line[last_match.end():].strip()
     
-    # Check for alphanumeric product ID patterns (letters followed by optional dash and digits)
-    # Examples: GT-099, JE-3345, JK51029, JKK283, JL8166
-    has_alphanumeric_id = bool(re.search(r"[A-Z]{1,4}[-]?\d{2,5}\b", line))
+    # There must be something after the amount
+    if not tail:
+        return False
     
-    # Special case: all-letter product IDs like "HOOK" at the end after amount
-    # Pattern: decimal amount (1+ digits, dot, 2 digits) immediately followed by 2-10 uppercase letters
-    # Examples: "0.00HOOK", "60.00HOOK"
-    has_letter_only_id = bool(re.search(r"\d+\.\d{2}[A-Z]{2,10}\b", line))
+    # The tail should contain at least one alphanumeric token
+    tokens = tail.split()
+    if not tokens:
+        return False
     
-    return has_long_digits or has_alphanumeric_id or has_letter_only_id
+    # First token should look like a product ID (alphanumeric, not just punctuation)
+    first_token = tokens[0]
+    # Must have at least one alphanumeric character
+    if not any(c.isalnum() for c in first_token):
+        return False
+    
+    return True
 
 
 def _parse_chinatown_summary_line(line: str) -> Optional[Tuple[Decimal, Optional[str], Optional[str]]]:
     """
-    Parse a Chinatown invoice summary line to extract price, product ID, and pack text.
+    Parse a Chinatown invoice summary line using position-based extraction.
     
-    Summary line format typically:
+    Summary line format:
     [pack_text] [qty] [price] [amount] [product_id] [barcode]
     
+    The key insight is that after the Amount column (last decimal), 
+    everything else is product_id followed by optional barcode.
+    
     Examples:
-    - '10PCS/BX, 10 BX/CS20 10.00 200.00GT-099 859176000518'
-    - '12 PCS / BX, 288 PCS / CS72 1.50 108.00JE-3345 4930428833453'
-    - '6PCS/ BX, 60PCS/CS6 13.00 78.00JK51029 4945569510293'
-    - 'S/S HOOK 挂钩 20 0.00 0.00HOOK'
+        '2 PCS/CS ****4 28.00 112.00800026 845970000267'
+          -> price=28.00, product_id='800026', pack_text='2 PCS/CS ****'
+        '1 SET / CS1 130.00 130.00800460S'
+          -> price=130.00, product_id='800460S', pack_text='1 SET / CS'
+        '10PCS/BX, 10 BX/CS20 10.00 200.00GT-099 859176000518'
+          -> price=10.00, product_id='GT-099', pack_text='10PCS/BX, 10 BX/CS'
+        'S/S HOOK 挂钩 20 0.00 0.00HOOK'
+          -> price=0.00, product_id='HOOK', pack_text='S/S HOOK 挂钩'
+    
+    Returns:
+        (price, product_id, pack_text) tuple or None
     """
     decimal_matches = list(PDF_CURRENCY_PATTERN.finditer(line))
-    if not decimal_matches:
+    if len(decimal_matches) < 2:
         return None
 
+    # First decimal is the price, second is the amount
     price_value = _to_decimal(decimal_matches[0].group())
-    amount_match = decimal_matches[1] if len(decimal_matches) > 1 else None
-    tail_start = amount_match.end() if amount_match else decimal_matches[0].end()
-    tail_text = line[tail_start:].strip()
-
-    product_id = None
-    if tail_text:
-        # First, try to extract alphanumeric product IDs
-        # Pattern: 1-4 letters, optional dash, 2-5 digits (e.g., GT-099, JE-3345, JK51029, JKK283)
-        alphanumeric_match = re.match(r"([A-Z]{1,4}[-]?\d{2,5})\b", tail_text)
-        if alphanumeric_match:
-            product_id = alphanumeric_match.group(1)
-        else:
-            # Check for letter-only product IDs (e.g., HOOK)
-            # These appear right after the amount value with no space
-            letter_only_match = re.match(r"([A-Z]{2,10})\b", tail_text)
-            if letter_only_match:
-                candidate = letter_only_match.group(1)
-                # Make sure it's not a common word/unit
-                common_words = {"PCS", "BOX", "BX", "CS", "SET", "BG", "BD", "PC"}
-                if candidate not in common_words:
-                    product_id = candidate
-            
-            # If no alphanumeric ID found, try numeric ID
-            if not product_id:
-                id_match = re.search(r"(\d{5,8})", tail_text)
-                if id_match:
-                    product_id = id_match.group(1)[-6:]
+    amount_match = decimal_matches[1]
     
-    # Check if product ID is stuck to the amount value (no space between)
-    # e.g., "200.00GT-099" or "0.00HOOK"
-    if not product_id and amount_match:
-        amount_end_pos = amount_match.end()
-        remaining = line[amount_end_pos:]
-        # Check if alphanumeric ID starts immediately after amount
-        stuck_alpha_match = re.match(r"([A-Z]{1,4}[-]?\d{2,5})\b", remaining)
-        if stuck_alpha_match:
-            product_id = stuck_alpha_match.group(1)
-        else:
-            stuck_letter_match = re.match(r"([A-Z]{2,10})\b", remaining)
-            if stuck_letter_match:
-                candidate = stuck_letter_match.group(1)
-                common_words = {"PCS", "BOX", "BX", "CS", "SET", "BG", "BD", "PC"}
-                if candidate not in common_words:
-                    product_id = candidate
-
-    # Fallback: look for 6-digit numeric product ID anywhere in the line
-    if not product_id:
-        fallback_match = re.search(r"(\d{6})", line)
-        if fallback_match:
-            product_id = fallback_match.group(1)
-
+    # Everything after the amount is product_id + optional barcode
+    tail = line[amount_match.end():].strip()
+    
+    product_id, _ = _extract_product_id_and_barcode_from_tail(tail)
+    
+    # Extract pack text (everything before the first decimal, minus trailing quantity)
     pack_text = line[:decimal_matches[0].start()].rstrip()
     if pack_text:
+        # Remove trailing quantity number (e.g., "2 PCS/CS ****4" -> "2 PCS/CS ****")
         pack_text = re.sub(r"\s*\d+\s*$", "", pack_text).strip()
         pack_text = _prettify_pack_text(pack_text)
 
