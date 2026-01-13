@@ -152,6 +152,11 @@ When uploading a product image:
 - Edit name, brand, price, stock, order quantity, and remarks inline.
 - A dedicated **Update Product ID** button unlocks a guarded editor. After you enter a new ID, a confirmation window summarizes the change (showing both the previous and proposed IDs) so you can double-check before the update is saved.
 
+### Inline Stock & Order Editors
+- Update values on the product list without losing focus between keystrokes.
+- Changes are submitted when you press `Enter` or click away; `Esc` cancels and restores the last saved value.
+- Increment/decrement buttons still send immediate updates and keep the inputs synchronized with the backend.
+
 ---
 
 ## API Reference
@@ -194,6 +199,59 @@ Test deduplication logic on specific files without running the server.
 ```bash
 python backend/tests/image_similarity_cli.py path/to/image1.png path/to/image2.png
 ```
+
+### Website Scraper
+
+The repo also contains a standalone scraper (`scraper/`) that mirrors every
+product + image from eshouseware.com without touching the main app logic.
+
+```bash
+# Activate your preferred venv first
+pip install -r scraper/requirements.txt
+playwright install  # required once
+
+python -m es_scraper.cli nav --refresh
+python -m es_scraper.cli run --mode sitemap --output scraper/data/product_images
+```
+
+Images land in `scraper/data/product_images/`, and `scraper/data/catalog.json`
+tracks the metadata (product ID, name, source URL, local path) for downstream
+consumers. Products that lack a downloadable hero image are skipped so every row
+in the manifest corresponds to an on-disk asset.
+
+### Seeding Production from the Scraper Catalog
+
+Once the scraper has populated `scraper/data/catalog.json`, use the helper below
+to push batches of products (and their cached hero images) into the production
+Render deployment. The script talks to the same FastAPI surface as the UI, so
+R2 uploads, deduplication heuristics, and validation rules all stay in effect.
+
+```bash
+# From the repo root (activate backend/venv first if you have one)
+source backend/venv/bin/activate
+python backend/scripts/import_scraped_catalog.py \
+  --api-base https://inventory-po-app.onrender.com/api \
+  --limit 10
+```
+
+Flags:
+
+* `--api-base` – API origin (with or without `/api`). Defaults to `PROD_API_BASE`.
+* `--catalog` – Path to the manifest (`scraper/data/catalog.json` by default).
+* `--limit` – Number of SKUs to sync per run (defaults to **10** for safe batches).
+
+Behavior:
+
+* New SKUs are created with zero stock/order quantities while preserving the
+  scraped name and description (description is saved under `remarks` alongside
+  the product URL for traceability).
+* If the SKU already exists in PostgreSQL and already has an image, it is
+  skipped entirely.
+* If the SKU exists but has no `image_url`, the script uploads the cached hero
+  image and attaches it via `PUT /api/products/{id}`.
+
+Because every request flows through the public API, successful runs
+automatically save binaries to Cloudflare R2 under the production bucket.
 
 ---
 

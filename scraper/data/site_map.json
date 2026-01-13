@@ -1,0 +1,272 @@
+[
+  {
+    "name": "New Arrivals 新品上市",
+    "url": "https://www.eshouseware.com/new-arrivals",
+    "subcategories": []
+  },
+  {
+    "name": "Cookware 烹飪鍋具",
+    "url": "https://www.eshouseware.com/cookware",
+    "subcategories": [
+      {
+        "name": "Casserole 砂鍋",
+        "url": "https://www.eshouseware.com/casserole"
+      },
+      {
+        "name": "Cooking Pots 湯鍋",
+        "url": "https://www.eshouseware.com/copy-of-sauce-pan-單柄不沾鍋"
+      },
+      {
+        "name": "Cooking Utensils 烹飪炊具",
+        "url": "https://www.eshouseware.com/cooking-utensils"
+      },
+      {
+        "name": "Fry Pan 煎鍋",
+        "url": "https://www.eshouseware.com/fry-pan煎鍋"
+      },
+      {
+        "name": "Grill Pans 烤盤",
+        "url": "https://www.eshouseware.com/grill-pans-烤盤"
+      },
+      {
+        "name": "Hot Pot 火鍋",
+        "url": "https://www.eshouseware.com/hot-pot"
+      },
+      {
+        "name": "Other Cookware 其他烹飪器具",
+        "url": "https://www.eshouseware.com/other-cookwares"
+      },
+      {
+        "name": "Sauce Pan 單柄鍋",
+        "url": "https://www.eshouseware.com/sauce-pan-單柄不沾鍋"
+      },
+      {
+        "name": "Small Kitchen Appliance廚房小電器",
+        "url": "https://www.eshouseware.com/small-kitchen-appliance"
+      },
+      {
+        "name": "Steamer蒸鍋",
+        "url": "https://www.eshouseware.com/steamer"
+      },
+      {
+        "name": "Woks 炒鍋",
+        "url": "https://www.eshouseware.com/iron-woks-鑄鐵炒鍋"
+      }
+    ]
+  },
+  {
+    "name": "Tableware 餐桌器具",
+    "url": "https://www.eshouseware.com/tableware",
+    "subcategories": [
+      {
+        "name": "Chopstick & Chopstick-rest 筷子和筷子架",
+        "url": "https://www.eshouseware.com/chopstick-筷子"
+      },
+      {
+        "name": "Dinnerware 碗盤餐具",
+        "url": "https://www.eshouseware.com/dinnerware"
+      },
+      {
+        "name": "Flatware 餐具",
+        "url": "https://www.eshouseware.com/flatware"
+      },
+      {
+        "name": "Sake Set 清酒杯組",
+        "url": "https://www.eshouseware.com/sake-set"
+      },
+      {
+        "name": "Straw 吸管",
+        "url": "https://www.eshouseware.com/straw"
+      },
+      {
+        "name": "Tea Cups & Tea Pot 茶杯和茶壺",
+        "url": "https://www.eshouseware.com/tea-cups-tea-pot"
+      },
+      {
+        "name": "Tea & Coffee Accessories 茶咖啡配件",
+        "url": "https://www.eshouseware.com/tea-coffee-accessories"
+      },
+      {
+        "name": "Tea Set 茶壺杯組",
+        "url": "https://www.eshouseware.com/tea-set-1"
+      },
+      {
+        "name": "Water Bottle 水壺",
+        "url": "https://www.eshouseware.com/water-bottle"
+      }
+    ]
+  },
+  {
+    "name": "Kitchenware 厨房器具",
+    "url": "https://www.eshouseware.com/kitchen",
+    "subcategories": [
+      {
+        "name": "Basins & Colanders 洗菜籃 & 盆",
+        "url": "https://www.eshouseware.com/basins-colanders"
+      },
+      {
+        "name": "BBQ Supplies 烤肉用具",
+        "url": "https://www.eshouseware.com/bbq-supplies"
+      },
+      {
+        "name": "Can Openers 開罐器",
+        "url": "https://www.eshouseware.com/can-openers"
+      },
+      {
+        "name": "Citrus Squeezer & Grinder 擠汁器 & 搗磨器",
+        "url": "https://www.eshouseware.com/citrus-squeezer-grinder"
+      },
+      {
+        "name": "Cooking Steam Accessories 蒸物配件",
+        "url": "https://www.eshouseware.com/cooking-steam-accessories"
+      },
+      {
+        "name": "Condiments Containers 調味料器皿",
+        "url": "https://www.eshouseware.com/condiments-調味"
+      },
+      {
+        "name": "Cutting Board 切菜板",
+        "url": "https://www.eshouseware.com/cutting-board"
+      },
+      {
+        "name": "Disposal一次性用品",
+        "url": "https://www.eshouseware.com/disposal"
+      },
+      {
+        "name": "Lid 蓋子",
+        "url": "https://www.eshouseware.com/lid"
+      },
+      {
+        "name": "Food Mold 食物模型",
+        "url": "https://www.eshouseware.com/food-mold"
+      },
+      {
+        "name": "Food Shredder 食物刨絲(片)器",
+        "url": "https://www.eshouseware.com/food-shredder"
+      },
+      {
+        "name": "Food Storage Containers 保鮮盒",
+        "url": "https://www.eshouseware.com/food-storage-containers"
+      },
+      {
+        "name": "Kitchen Accessories 廚房配件",
+        "url": "https://www.eshouseware.com/kitchen-accessories-廚房配件"
+      },
+      {
+        "name": "Kitchen Tongs 料理夾",
+        "url": "https://www.eshouseware.com/tongs"
+      },
+      {
+        "name": "Knives 刀具",
+        "url": "https://www.eshouseware.com/cutlery-knives"
+      },
+      {
+        "name": "Mixing Bowls/Plates 調理盆",
+        "url": "https://www.eshouseware.com/mixing-bowls-plates"
+      },
+      {
+        "name": "Peelers 刨皮器",
+        "url": "https://www.eshouseware.com/peelers-slicers"
+      },
+      {
+        "name": "Rolling Pin 擀麵棍",
+        "url": "https://www.eshouseware.com/rolling-pin"
+      },
+      {
+        "name": "Scissors剪刀",
+        "url": "https://www.eshouseware.com/scissors"
+      },
+      {
+        "name": "Sink Accessories 水槽濾網",
+        "url": "https://www.eshouseware.com/sink-accessories"
+      },
+      {
+        "name": "Skimmer 濾網杓",
+        "url": "https://www.eshouseware.com/skimmer"
+      },
+      {
+        "name": "Specialty Tools & Gadgets 特殊烹飪小工具",
+        "url": "https://www.eshouseware.com/specialty-tools-gadgets"
+      }
+    ]
+  },
+  {
+    "name": "Household Items 居家用品",
+    "url": "https://www.eshouseware.com/household-items",
+    "subcategories": [
+      {
+        "name": "Bathroom 衛浴",
+        "url": "https://www.eshouseware.com/bathroom-supplies-衛浴用品"
+      },
+      {
+        "name": "Cleaning 清潔",
+        "url": "https://www.eshouseware.com/cleaning-tools"
+      },
+      {
+        "name": "Home 居家",
+        "url": "https://www.eshouseware.com/home-supplies"
+      },
+      {
+        "name": "Laundry 洗衣",
+        "url": "https://www.eshouseware.com/laundry-supplies"
+      },
+      {
+        "name": "Other Household Items 其他生活用品",
+        "url": "https://www.eshouseware.com/other-household-items"
+      }
+    ]
+  },
+  {
+    "name": "CNY Collection 新春年貨",
+    "url": "https://www.eshouseware.com/chinese-culture-collection",
+    "subcategories": [
+      {
+        "name": "Chinese Antique(Toys) 中國古玩",
+        "url": "https://www.eshouseware.com/cny-supplies"
+      },
+      {
+        "name": "Lantern 燈籠",
+        "url": "https://www.eshouseware.com/lantern"
+      },
+      {
+        "name": "Lucky Cat 招財貓",
+        "url": "https://www.eshouseware.com/lucky-cat"
+      },
+      {
+        "name": "Red Envelop 紅包",
+        "url": "https://www.eshouseware.com/red-envelop"
+      },
+      {
+        "name": "Spring couplets 春聯",
+        "url": "https://www.eshouseware.com/spring-couplets"
+      }
+    ]
+  },
+  {
+    "name": "Joss 祭祀供品",
+    "url": "https://www.eshouseware.com/joss",
+    "subcategories": [
+      {
+        "name": "Joss Candle 蠟燭",
+        "url": "https://www.eshouseware.com/joss-candle"
+      },
+      {
+        "name": "Joss Incense Stick(Pot) 香(爐)",
+        "url": "https://www.eshouseware.com/joss-incense-stick-pot"
+      },
+      {
+        "name": "Joss Paper 金銀紙",
+        "url": "https://www.eshouseware.com/joss-paper"
+      },
+      {
+        "name": "Joss Supplies 祭祀用品",
+        "url": "https://www.eshouseware.com/joss-supplies"
+      }
+    ]
+  },
+  {
+    "name": "Zhang Xiao Quan 張小泉",
+    "url": "https://www.eshouseware.com/blank",
+    "subcategories": []
+  }
+]

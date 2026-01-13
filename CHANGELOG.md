@@ -2,6 +2,143 @@
 
 All notable changes to the Inventory PO Web App project will be documented in this file.
 
+## [1.2.30] - 2026-01-12
+
+### Changed - Inline stock/order editors keep focus
+
+**Why**: Typing multi-digit numbers in the product card inputs forced users to
+re-click the field after every keystroke because the input disabled itself once
+an API call started, making basic adjustments tedious.
+
+**What**:
+- Buffered the list view inputs so keystrokes stay local until the field loses
+  focus or the user presses `Enter`.
+- Added `Esc` handling to cancel edits, and kept the increment/decrement buttons
+  wired to immediate updates to preserve the existing shortcuts.
+- Synced the documentation (README) so operators understand the new editing
+  workflow.
+
+**Benefits**:
+- Users can type full values (e.g., “23”) without interruptions, making cycle
+  counts noticeably faster.
+- Backend noise drops because we only PATCH when the user commits a change.
+- Escape-to-cancel provides a clear, low-friction way to revert accidental
+  edits.
+
+## [1.2.29] - 2026-01-10
+
+### Added - Scraper catalog importer + initial R2 seeding
+
+**Why**: After harvesting thousands of ES Houseware products offline we needed a
+repeatable way to promote those rows (and their cached hero images) into the
+production Render/PostgreSQL/R2 stack without bypassing the API’s validation and
+deduplication layers.
+
+**What**:
+- Added `backend/scripts/import_scraped_catalog.py`, a small helper that reads
+  `scraper/data/catalog.json`, POSTs new SKUs via `/api/products`, and attaches
+  cached hero images to any products that exist without `image_url`.
+- Documented the workflow (flags, expectations, and sequencing with the scraper)
+  in the README under “Seeding Production from the Scraper Catalog.”
+- Ran the helper against production for the first 10 SKUs
+  (`800000`–`800009`), creating eight new rows and backfilling images for two
+  existing records.
+
+**Benefits**:
+- Keeps the production database, Cloudflare R2, and downstream tooling in sync
+  with the curated scraper dataset.
+- Uses the same FastAPI code paths as the UI, so deduplication, validation, and
+  R2 uploads continue behaving exactly like manual edits.
+
+## [1.2.28] - 2026-01-10
+
+### Changed - Skip catalog entries without images
+
+**Why**: Including products that have no downloadable hero image resulted in
+half-populated manifest rows that downstream tooling could not actually render.
+
+**What**:
+- Added an explicit guard in both sitemap and dynamic scrapers so records are
+  only saved when at least one image fetch succeeds.
+- Updated scraper docs (README, DESIGN, PLAN, root README) to call out the
+  behavior change.
+- Copied the catalog skip rule into both changelogs so the behavior stays
+  discoverable.
+
+**Benefits**:
+- Keeps `catalog.json` aligned with real binaries on disk.
+- Avoids wasting bandwidth or disk on unusable entries (aliases, landing pages,
+  etc.).
+
+## [1.2.27] - 2026-01-10
+
+### Changed - Dedicated product_images staging
+
+**Why**: Operators asked for a stable, scraper-only tree that keeps raw images separate from other cached artifacts so rsync jobs and downstream loaders can glob file extensions without touching manifests.
+
+**What**:
+- Pointed the scraper CLI’s default `--output` argument to `scraper/data/product_images/`.
+- Updated all scraper docs (README, DESIGN, PLAN) plus the project README to call out the new directory layout and keep `catalog.json` scoped to `scraper/data/`.
+- Documented the change here so future runs keep the same directory contract.
+
+**Benefits**:
+- Images and metadata live side-by-side but no longer crowd the root of `scraper/data/`.
+- Subdirectories make it safer to delete/rebuild the image cache without touching other artifacts like `site_map.json` or the manifest.
+
+## [1.2.26] - 2026-01-10
+
+### Changed - Scraper output location
+
+**Why**: Keeping scraper artifacts inside `scraper/data/` avoids coupling the standalone harvester to the backend’s `static/` directory and makes it easier to sync/copy the entire dataset.
+
+**What**:
+- Pointed the CLI defaults (`--output`, `--manifest`, and `inspect-manifest`) to `scraper/data/`.
+- Updated scraper docs (README, PLAN, DESIGN, and root README) to mention the new default paths for both image binaries and the catalog manifest.
+
+**Benefits**:
+- Scraper runs remain self-contained inside the `scraper/` workspace.
+- Moving/archiving the harvested dataset now requires copying a single directory.
+
+## [1.2.25] - 2026-01-10
+
+### Added - Website scraper + offline asset cache
+
+**Why**: Operators requested a dedicated, repeatable way to capture every product
+image/ID from eshouseware.com without touching the existing backend/frontend.
+
+**What**:
+- Introduced the `scraper/` workspace (README, DESIGN, CHANGELOG, PLAN, and test
+  proposal) plus a Typer-based CLI.
+- Added a sitemap-driven product harvester that parses each product page’s
+  JSON-LD, downloads hero images to `scraper/data/`, and persists a
+  `catalog.json` manifest.
+- Shipped an optional Playwright-powered category walker and documented the
+  workflow in the root README.
+
+**Benefits**:
+- Product images are now available locally for inventory reconciliation.
+- Catalog metadata stays normalized (ID → name → image path), making downstream
+  tooling simpler.
+
+### Dataset snapshot
+- Ran the sitemap harvester + retry-friendly helper scripts to populate
+  `scraper/data/` and `scraper/data/catalog.json` with **2,799**
+  product records (unique product IDs) as of 2026‑01‑10.
+- Remaining sitemap URLs point at marketing alias pages that reuse an existing
+  product ID (e.g., additional `tea-set`, `lucky-cat`, and sake-set slugs) or
+  lack downloadable images. Their slugs are documented in `scraper/SCRAPER_README.md`
+  so future runs can decide whether to fan them out into separate records.
+
+### Changed - Scraper doc naming
+
+**Why**: Differentiating scraper-specific Markdown files from similarly named
+project-wide docs made navigation/confidence harder.
+
+**What**:
+- Renamed every Markdown file under `scraper/` with a `SCRAPER_` prefix.
+- Updated references in documentation, packaging metadata, and changelog notes
+  to point at the new filenames.
+
 ## [1.2.24] - 2025-12-23
 
 ### Added - Confirmed Product ID editing

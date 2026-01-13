@@ -1,30 +1,49 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { productAPI, resolveImageUrl } from '../api';
 
 function ProductCard({ product, onUpdate }) {
-  const [orderQty, setOrderQty] = useState(product.order_qty);
-  const [stockCount, setStockCount] = useState(product.stock);
+  const initialOrderQty = Number.isFinite(product.order_qty) ? product.order_qty : 0;
+  const initialStockCount = Number.isFinite(product.stock) ? product.stock : 0;
+
+  const [orderQty, setOrderQty] = useState(initialOrderQty);
+  const [stockCount, setStockCount] = useState(initialStockCount);
+  const [orderInputValue, setOrderInputValue] = useState(String(initialOrderQty));
+  const [stockInputValue, setStockInputValue] = useState(String(initialStockCount));
   const [isOrderUpdating, setIsOrderUpdating] = useState(false);
   const [isStockUpdating, setIsStockUpdating] = useState(false);
+  const orderCancelCommitRef = useRef(false);
+  const stockCancelCommitRef = useRef(false);
+
+  const normalizeInput = (value) => {
+    const parsed = parseInt(value, 10);
+    if (Number.isNaN(parsed) || parsed < 0) return 0;
+    return parsed;
+  };
 
   // Sync local state when product prop changes (e.g., after Clear All)
   useEffect(() => {
-    setOrderQty(product.order_qty);
-    setStockCount(product.stock);
+    const nextOrderQty = Number.isFinite(product.order_qty) ? product.order_qty : 0;
+    const nextStock = Number.isFinite(product.stock) ? product.stock : 0;
+    setOrderQty(nextOrderQty);
+    setStockCount(nextStock);
+    setOrderInputValue(String(nextOrderQty));
+    setStockInputValue(String(nextStock));
   }, [product.order_qty, product.stock]);
 
   const handleOrderQtyChange = async (newQty) => {
     if (newQty < 0) return;
-    
+    const previousOrderQty = orderQty;
     setIsOrderUpdating(true);
     try {
       await productAPI.updateOrderQty(product.id, newQty);
       setOrderQty(newQty);
+      setOrderInputValue(String(newQty));
       if (onUpdate) onUpdate();
     } catch (error) {
       alert('Failed to update order quantity: ' + (error.response?.data?.detail || error.message));
-      setOrderQty(product.order_qty);
+      setOrderQty(previousOrderQty);
+      setOrderInputValue(String(previousOrderQty));
     } finally {
       setIsOrderUpdating(false);
     }
@@ -32,15 +51,17 @@ function ProductCard({ product, onUpdate }) {
 
   const handleStockChange = async (newStock) => {
     if (newStock < 0) return;
-
+    const previousStock = stockCount;
     setIsStockUpdating(true);
     try {
       await productAPI.updateStock(product.id, newStock);
       setStockCount(newStock);
+      setStockInputValue(String(newStock));
       if (onUpdate) onUpdate();
     } catch (error) {
       alert('Failed to update stock: ' + (error.response?.data?.detail || error.message));
-      setStockCount(product.stock);
+      setStockCount(previousStock);
+      setStockInputValue(String(previousStock));
     } finally {
       setIsStockUpdating(false);
     }
@@ -50,6 +71,58 @@ function ProductCard({ product, onUpdate }) {
   const decrementOrder = () => handleOrderQtyChange(Math.max(0, orderQty - 1));
   const incrementStock = () => handleStockChange(stockCount + 1);
   const decrementStock = () => handleStockChange(Math.max(0, stockCount - 1));
+
+  const handleStockInputBlur = () => {
+    if (stockCancelCommitRef.current) {
+      stockCancelCommitRef.current = false;
+      setStockInputValue(String(stockCount));
+      return;
+    }
+    const normalizedValue = normalizeInput(stockInputValue);
+    if (normalizedValue !== stockCount) {
+      handleStockChange(normalizedValue);
+    } else {
+      setStockInputValue(String(stockCount));
+    }
+  };
+
+  const handleOrderInputBlur = () => {
+    if (orderCancelCommitRef.current) {
+      orderCancelCommitRef.current = false;
+      setOrderInputValue(String(orderQty));
+      return;
+    }
+    const normalizedValue = normalizeInput(orderInputValue);
+    if (normalizedValue !== orderQty) {
+      handleOrderQtyChange(normalizedValue);
+    } else {
+      setOrderInputValue(String(orderQty));
+    }
+  };
+
+  const handleStockInputKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.currentTarget.blur();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      stockCancelCommitRef.current = true;
+      setStockInputValue(String(stockCount));
+      event.currentTarget.blur();
+    }
+  };
+
+  const handleOrderInputKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.currentTarget.blur();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      orderCancelCommitRef.current = true;
+      setOrderInputValue(String(orderQty));
+      event.currentTarget.blur();
+    }
+  };
 
   return (
     <div style={styles.card}>
@@ -83,15 +156,14 @@ function ProductCard({ product, onUpdate }) {
               </button>
               <input
                 type="number"
-                value={stockCount}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  const nextValue = Number.isNaN(val) ? 0 : val;
-                  if (nextValue >= 0) handleStockChange(nextValue);
-                }}
+                value={stockInputValue}
+                onChange={(e) => setStockInputValue(e.target.value)}
+                onBlur={handleStockInputBlur}
+                onKeyDown={handleStockInputKeyDown}
                 style={styles.qtyInput}
                 min="0"
-                disabled={isStockUpdating}
+                inputMode="numeric"
+                pattern="[0-9]*"
               />
               <button
                 onClick={incrementStock}
@@ -116,15 +188,14 @@ function ProductCard({ product, onUpdate }) {
               </button>
               <input
                 type="number"
-                value={orderQty}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  const nextValue = Number.isNaN(val) ? 0 : val;
-                  if (nextValue >= 0) handleOrderQtyChange(nextValue);
-                }}
+                value={orderInputValue}
+                onChange={(e) => setOrderInputValue(e.target.value)}
+                onBlur={handleOrderInputBlur}
+                onKeyDown={handleOrderInputKeyDown}
                 style={styles.qtyInput}
                 min="0"
-                disabled={isOrderUpdating}
+                inputMode="numeric"
+                pattern="[0-9]*"
               />
               <button 
                 onClick={incrementOrder} 
