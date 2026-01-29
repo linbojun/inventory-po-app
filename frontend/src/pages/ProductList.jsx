@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { productAPI } from '../api';
 import ProductCard from '../components/ProductCard';
 import { useCart } from '../contexts/CartContext';
+import './ProductList.css';
 
 function ProductList() {
   const { refreshTrigger } = useCart();
@@ -88,21 +89,21 @@ function ProductList() {
 
     const newSortBy = value.slice(0, separatorIndex);
     const newSortDir = value.slice(separatorIndex + 1);
-    
+
     // Ensure we have valid values
     if (!newSortBy || !newSortDir || !['asc', 'desc'].includes(newSortDir)) {
       console.error('Invalid sort value:', { newSortBy, newSortDir, value });
       return;
     }
-    
+
     // Set flag to prevent useEffect from running with stale values
     setIsManualSortChange(true);
-    
+
     // Update state values - React will batch these
     setSortBy(newSortBy);
     setSortDir(newSortDir);
     setPage(1);
-    
+
     // Immediately fetch with the new sort values to ensure correct ordering
     // This bypasses any potential race conditions with useCallback
     try {
@@ -125,15 +126,6 @@ function ProductList() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getSortDisplayText = () => {
-    if (sortBy === 'product_id') {
-      return sortDir === 'asc' ? 'Product ID (A-Z ↑)' : 'Product ID (Z-A ↓)';
-    } else if (sortBy === 'stock') {
-      return sortDir === 'asc' ? 'Stock (Low to High ↑)' : 'Stock (High to Low ↓)';
-    }
-    return 'Sort by...';
   };
 
   if (loading && products.length === 0) {
@@ -172,7 +164,7 @@ function ProductList() {
         <div style={styles.empty}>No products found</div>
       ) : (
         <>
-          <div style={styles.grid}>
+          <div className="product-list-grid">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} onUpdate={fetchProducts} />
             ))}
@@ -180,7 +172,7 @@ function ProductList() {
           {totalPages > 1 && (
             <div style={styles.pagination}>
               <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
                 style={styles.pageButton}
               >
@@ -190,7 +182,7 @@ function ProductList() {
                 Page {page} of {totalPages}
               </span>
               <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
                 style={styles.pageButton}
               >
@@ -251,20 +243,6 @@ const styles = {
     cursor: 'pointer',
     color: '#555555',
   },
-  sortIndicator: {
-    fontSize: '0.9rem',
-    color: '#7f8c8d',
-    fontWeight: '500',
-    padding: '0.5rem 0.75rem',
-    backgroundColor: '#ecf0f1',
-    borderRadius: '4px',
-    whiteSpace: 'nowrap',
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-    gap: '1.5rem',
-  },
   loading: {
     textAlign: 'center',
     padding: '3rem',
@@ -306,4 +284,3 @@ const styles = {
 };
 
 export default ProductList;
-

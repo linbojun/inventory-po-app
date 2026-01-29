@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { productAPI, resolveImageUrl } from '../api';
+import './ProductCard.css';
 
 function ProductCard({ product, onUpdate }) {
   const initialOrderQty = Number.isFinite(product.order_qty) ? product.order_qty : 0;
@@ -125,31 +126,34 @@ function ProductCard({ product, onUpdate }) {
   };
 
   return (
-    <div style={styles.card}>
-      <Link to={`/product/${product.id}`} style={styles.imageLink}>
-        <img 
-          src={resolveImageUrl(product.image_url)} 
+    <div className="product-card">
+      <Link to={`/product/${product.id}`} className="product-card__imageLink">
+        <img
+          src={resolveImageUrl(product.image_url)}
           alt={product.name}
-          style={styles.image}
+          className="product-card__image"
           onError={(e) => {
-            e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
+            e.target.src =
+              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
           }}
         />
       </Link>
-      <div style={styles.content}>
-        <Link to={`/product/${product.id}`} style={styles.titleLink}>
-          <h3 style={styles.name}>{product.name}</h3>
+
+      <div className="product-card__content">
+        <Link to={`/product/${product.id}`} className="product-card__titleLink">
+          <h3 className="product-card__name">{product.name}</h3>
         </Link>
-        {product.brand && <p style={styles.brand}>{product.brand}</p>}
-        <p style={styles.productId}>ID: {product.product_id}</p>
-        <div style={styles.info}>
-          <div style={styles.stock}>
-            <span style={styles.label}>Stock:</span>
-            <div style={styles.qtyControls}>
+        {product.brand && <p className="product-card__brand">{product.brand}</p>}
+        <p className="product-card__productId">ID: {product.product_id}</p>
+
+        <div className="product-card__info">
+          <div className="product-card__row">
+            <span className="product-card__label">Stock:</span>
+            <div className="product-card__qtyControls">
               <button
                 onClick={decrementStock}
                 disabled={isStockUpdating || stockCount === 0}
-                style={styles.qtyButton}
+                className="product-card__qtyButton"
                 title="Decrease stock"
               >
                 ↓
@@ -160,7 +164,7 @@ function ProductCard({ product, onUpdate }) {
                 onChange={(e) => setStockInputValue(e.target.value)}
                 onBlur={handleStockInputBlur}
                 onKeyDown={handleStockInputKeyDown}
-                style={styles.qtyInput}
+                className="product-card__qtyInput"
                 min="0"
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -168,20 +172,21 @@ function ProductCard({ product, onUpdate }) {
               <button
                 onClick={incrementStock}
                 disabled={isStockUpdating}
-                style={styles.qtyButton}
+                className="product-card__qtyButton"
                 title="Increase stock"
               >
                 ↑
               </button>
             </div>
           </div>
-          <div style={styles.orderQty}>
-            <span style={styles.label}>Order:</span>
-            <div style={styles.qtyControls}>
-              <button 
-                onClick={decrementOrder} 
+
+          <div className="product-card__row">
+            <span className="product-card__label">Order:</span>
+            <div className="product-card__qtyControls">
+              <button
+                onClick={decrementOrder}
                 disabled={isOrderUpdating || orderQty === 0}
-                style={styles.qtyButton}
+                className="product-card__qtyButton"
                 title="Decrease order quantity"
               >
                 ↓
@@ -192,15 +197,15 @@ function ProductCard({ product, onUpdate }) {
                 onChange={(e) => setOrderInputValue(e.target.value)}
                 onBlur={handleOrderInputBlur}
                 onKeyDown={handleOrderInputKeyDown}
-                style={styles.qtyInput}
+                className="product-card__qtyInput"
                 min="0"
                 inputMode="numeric"
                 pattern="[0-9]*"
               />
-              <button 
-                onClick={incrementOrder} 
+              <button
+                onClick={incrementOrder}
                 disabled={isOrderUpdating}
-                style={styles.qtyButton}
+                className="product-card__qtyButton"
                 title="Increase order quantity"
               >
                 ↑
@@ -208,8 +213,9 @@ function ProductCard({ product, onUpdate }) {
             </div>
           </div>
         </div>
+
         {product.remarks && (
-          <p style={styles.remarks} title={product.remarks}>
+          <p className="product-card__remarks" title={product.remarks}>
             💬 {product.remarks.substring(0, 30)}{product.remarks.length > 30 ? '...' : ''}
           </p>
         )}
@@ -218,119 +224,4 @@ function ProductCard({ product, onUpdate }) {
   );
 }
 
-const styles = {
-  card: {
-    border: '1px solid #ddd',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    backgroundColor: 'white',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    transition: 'transform 0.2s, box-shadow 0.2s',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  imageLink: {
-    display: 'block',
-    width: '100%',
-    aspectRatio: '4/3',
-    overflow: 'hidden',
-    backgroundColor: '#f5f5f5',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
-    backgroundColor: '#f5f5f5',
-  },
-  content: {
-    padding: '1rem',
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  titleLink: {
-    textDecoration: 'none',
-    color: 'inherit',
-  },
-  name: {
-    margin: '0 0 0.5rem 0',
-    fontSize: '1.1rem',
-    fontWeight: '600',
-    color: '#2c3e50',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  brand: {
-    margin: '0 0 0.5rem 0',
-    fontSize: '0.9rem',
-    color: '#7f8c8d',
-  },
-  productId: {
-    margin: '0 0 1rem 0',
-    fontSize: '0.85rem',
-    color: '#95a5a6',
-  },
-  info: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-    marginTop: 'auto',
-  },
-  stock: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  orderQty: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  label: {
-    fontSize: '0.9rem',
-    color: '#34495e',
-    fontWeight: '500',
-  },
-  qtyControls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  qtyButton: {
-    width: '28px',
-    height: '28px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    backgroundColor: 'white',
-    cursor: 'pointer',
-    fontSize: '1.2rem',
-    fontWeight: 'bold',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'background-color 0.2s',
-    color: '#2c3e50',
-    lineHeight: '1',
-  },
-  qtyInput: {
-    width: '50px',
-    padding: '4px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    textAlign: 'center',
-    fontSize: '0.9rem',
-  },
-  remarks: {
-    margin: '0.5rem 0 0 0',
-    fontSize: '0.85rem',
-    color: '#7f8c8d',
-    fontStyle: 'italic',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-};
-
 export default ProductCard;
-

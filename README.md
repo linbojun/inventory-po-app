@@ -9,6 +9,7 @@ This application streamlines the process of tracking inventory and creating purc
 ### Key Features
 
 *   **Product Management**: View, search, and sort products. Update stock levels and order quantities inline.
+    *   **Responsive grid**: On mobile browsers the product list uses a dense, multi-column layout (2 columns on very small phones, 3 columns on most phones) plus a compact card style for easier scanning.
 *   **Shopping Cart**: Dedicated view for products with active order quantities (`order_qty > 0`).
 *   **Smart Import**: 
     *   Parse Excel and PDF invoices (specifically optimized for Chinatown Supermarket layouts).
